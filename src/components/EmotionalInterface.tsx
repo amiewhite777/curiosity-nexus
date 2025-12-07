@@ -275,9 +275,9 @@ export default function EmotionalInterface({ onTap }: Props) {
             </ul>
           </div>
 
-          <div style={styles.shadowSection}>
-            <h3 style={styles.sectionTitle}>Your Shadow</h3>
-            <p style={styles.shadowText}>{finalArchetype.shadowSide}</p>
+          <div style={styles.growthSection}>
+            <h3 style={styles.sectionTitle}>Your Growth Edge</h3>
+            <p style={styles.growthText}>{finalArchetype.shadowSide}</p>
           </div>
 
           <div style={styles.patternSection}>
@@ -353,9 +353,9 @@ export default function EmotionalInterface({ onTap }: Props) {
                   ...styles.progressDot,
                   background:
                     idx < currentQuestionIndex
-                      ? 'rgba(100, 200, 255, 0.8)'
+                      ? 'rgba(255, 200, 100, 0.9)'
                       : idx === currentQuestionIndex
-                      ? 'rgba(100, 200, 255, 0.4)'
+                      ? 'rgba(255, 200, 100, 0.5)'
                       : 'rgba(255, 255, 255, 0.15)',
                 }}
               />
@@ -375,7 +375,7 @@ export default function EmotionalInterface({ onTap }: Props) {
       {/* Analyzing state */}
       {!showQuestion && !collectingTaps && !showArchetypeReveal && (
         <div style={styles.analyzingOverlay}>
-          <p style={styles.analyzingText}>Analyzing your patterns...</p>
+          <p style={styles.analyzingText}>Discovering your unique essence ✨</p>
         </div>
       )}
     </div>
@@ -635,16 +635,16 @@ const styles = {
       left: 0,
     },
   },
-  shadowSection: {
+  growthSection: {
     marginBottom: '32px',
     padding: '24px',
-    background: 'rgba(0, 0, 0, 0.25)',
+    background: 'rgba(255, 200, 100, 0.08)',
     borderRadius: '16px',
-    border: '1px solid rgba(255, 100, 100, 0.15)',
+    border: '1px solid rgba(255, 200, 100, 0.25)',
   },
-  shadowText: {
+  growthText: {
     fontSize: '15px',
-    color: 'rgba(255, 140, 140, 0.85)',
+    color: 'rgba(255, 220, 150, 0.9)',
     lineHeight: '1.7',
     fontStyle: 'italic',
     fontWeight: '300',
