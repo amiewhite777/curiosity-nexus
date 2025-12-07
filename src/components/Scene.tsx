@@ -5,6 +5,7 @@ import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useSimulationStore } from '@/store/simulationStore';
 import { EnergyParticles } from '@/visuals/particles/energyParticles';
+import { getAudioManager } from '@/audio/audioManager';
 import type { TapEvent } from './SimulationCanvas';
 
 interface SceneProps {
@@ -27,6 +28,7 @@ export default function Scene({ latestTap }: SceneProps) {
   const hueRef = useRef(0);
   const lastTapTimestampRef = useRef(0);
   const waveSourcesRef = useRef<WaveSource[]>([]);
+  const audioManager = useRef(getAudioManager());
 
   const { camera } = useThree();
   const {
@@ -36,11 +38,18 @@ export default function Scene({ latestTap }: SceneProps) {
     perturbSystem,
   } = useSimulationStore();
 
-  // Initialize particles
+  // Initialize particles and audio
   useEffect(() => {
     if (!particlesRef.current) {
       particlesRef.current = new EnergyParticles(1500, new THREE.Vector3(0, 0, 0));
     }
+
+    // Initialize audio (will be resumed on first user interaction)
+    audioManager.current.initialize();
+
+    return () => {
+      audioManager.current.stopAll();
+    };
   }, []);
 
   // Handle taps from EmotionalInterface
@@ -85,6 +94,15 @@ export default function Scene({ latestTap }: SceneProps) {
       if (waveSourcesRef.current.length > 15) {
         waveSourcesRef.current.shift();
       }
+
+      // Play tap sound
+      audioManager.current.resume(); // Resume context if suspended
+      audioManager.current.playTapSound({
+        x: latestTap.x,
+        y: latestTap.y,
+        duration: latestTap.duration,
+        timestamp: latestTap.timestamp,
+      });
 
       // Quick tap vs hold - particle behavior
       if (isQuickTap) {
