@@ -31,6 +31,7 @@ export class AudioManager {
 
     try {
       this.context = new AudioContext();
+      console.log('🎵 AudioContext created, state:', this.context.state);
 
       // Master gain for overall volume control
       this.masterGain = this.context.createGain();
@@ -42,9 +43,9 @@ export class AudioManager {
       this.reverbNode.connect(this.masterGain);
 
       this.isInitialized = true;
-      console.log('AudioManager initialized');
+      console.log('✅ AudioManager initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize audio:', error);
+      console.error('❌ Failed to initialize audio:', error);
     }
   }
 
@@ -73,7 +74,21 @@ export class AudioManager {
    * Play a tap sound based on interaction properties
    */
   playTapSound(tap: TapSound): void {
-    if (!this.context || !this.masterGain || !this.reverbNode) return;
+    if (!this.context || !this.masterGain || !this.reverbNode) {
+      console.warn('⚠️ AudioManager not ready:', {
+        hasContext: !!this.context,
+        hasMasterGain: !!this.masterGain,
+        hasReverb: !!this.reverbNode
+      });
+      return;
+    }
+
+    console.log('🎵 Playing tap sound:', {
+      contextState: this.context.state,
+      duration: tap.duration,
+      x: tap.x.toFixed(2),
+      y: tap.y.toFixed(2)
+    });
 
     const now = this.context.currentTime;
     const isQuickTap = tap.duration < 200;
@@ -83,6 +98,8 @@ export class AudioManager {
     const pitchRatio = this.scaleRatios[Math.min(pitchIndex, this.scaleRatios.length - 1)];
     const baseFreq = isQuickTap ? this.baseFrequencies.quick : this.baseFrequencies.hold;
     const frequency = baseFreq * pitchRatio;
+
+    console.log(`🎹 ${isQuickTap ? 'Quick tap' : 'Hold'} at ${frequency.toFixed(1)}Hz`);
 
     if (isQuickTap) {
       this.playQuickTap(frequency, tap.x, now);
@@ -308,8 +325,19 @@ export class AudioManager {
    * Resume audio context (required for user interaction)
    */
   async resume(): Promise<void> {
-    if (this.context && this.context.state === 'suspended') {
+    if (!this.context) {
+      console.warn('⚠️ No audio context to resume');
+      return;
+    }
+
+    console.log('🔊 Audio context state:', this.context.state);
+
+    if (this.context.state === 'suspended') {
+      console.log('▶️ Resuming audio context...');
       await this.context.resume();
+      console.log('✅ Audio context resumed, new state:', this.context.state);
+    } else {
+      console.log('✅ Audio context already running');
     }
   }
 
