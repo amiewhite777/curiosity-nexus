@@ -72,8 +72,8 @@ export default function Scene({ latestTap }: SceneProps) {
     raycaster.ray.intersectPlane(plane, worldPoint);
 
     if (worldPoint && particlesRef.current) {
-      // Color shift
-      hueRef.current = (hueRef.current + 30) % 360;
+      // Color shift - full spectrum cycle with each tap
+      hueRef.current = (hueRef.current + 45) % 360;
 
       // Perturb system
       perturbSystem(0.3);
@@ -104,14 +104,15 @@ export default function Scene({ latestTap }: SceneProps) {
         timestamp: latestTap.timestamp,
       });
 
-      // Quick tap vs hold - particle behavior
+      // Particle behavior - ALWAYS burst on tap, plus attract/repel
       if (isQuickTap) {
-        // Quick tap = attract
-        particlesRef.current.attractToPoint(worldPoint, 0.5);
+        // Quick tap = attract + sharp burst
+        particlesRef.current.attractToPoint(worldPoint, 0.6);
+        particlesRef.current.burst(worldPoint, 25); // More particles!
       } else {
-        // Hold = repel + burst
-        particlesRef.current.repelFromPoint(worldPoint, 0.5);
-        particlesRef.current.burst(worldPoint, 15);
+        // Hold = repel + sustained burst
+        particlesRef.current.repelFromPoint(worldPoint, 0.6);
+        particlesRef.current.burst(worldPoint, 40); // Even more particles!
       }
     }
   }, [latestTap, camera, perturbSystem]);
