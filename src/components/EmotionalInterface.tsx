@@ -16,11 +16,11 @@ interface Props {
 }
 
 const QUESTIONS = [
-  "What scares you most about tomorrow?",
-  "When was the last time you felt truly alive?",
-  "What part of yourself do you hide from others?",
-  "If no one was watching, who would you become?",
-  "What truth are you avoiding right now?",
+  "What brings you the most joy in this moment?",
+  "What are you most grateful for today?",
+  "What makes you feel most alive?",
+  "What dream would you chase if you knew you couldn't fail?",
+  "What part of yourself are you most proud of?",
 ];
 
 const INTRO_SLIDES = [
@@ -38,7 +38,7 @@ const INTRO_SLIDES = [
   },
   {
     title: "Express yourself",
-    text: "Tap up to 100 times - fast, slow, hold, or quick taps.",
+    text: "Tap up to 30 times - fast, slow, hold, or quick taps.",
   },
   {
     title: "Feel, don't think",
@@ -74,7 +74,7 @@ export default function EmotionalInterface({ onTap }: Props) {
   const audioManager = useRef(getAudioManager());
 
   const FLASH_DURATION = 3500; // 3.5 seconds
-  const MAX_TAPS_PER_QUESTION = 100;
+  const MAX_TAPS_PER_QUESTION = 30;
   const TOTAL_QUESTIONS = 5;
 
   // Start session
