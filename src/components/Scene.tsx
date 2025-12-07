@@ -11,11 +11,13 @@ interface SceneProps {
   latestTap: TapEvent | null;
 }
 
-interface TapInfluence {
+interface WaveSource {
   worldPoint: THREE.Vector3;
-  strength: number;
-  isHold: boolean;
+  amplitude: number;
+  frequency: number;
+  speed: number;
   timestamp: number;
+  isQuickTap: boolean;
 }
 
 export default function Scene({ latestTap }: SceneProps) {
@@ -24,7 +26,7 @@ export default function Scene({ latestTap }: SceneProps) {
   const timeRef = useRef(0);
   const hueRef = useRef(0);
   const lastTapTimestampRef = useRef(0);
-  const tapInfluencesRef = useRef<TapInfluence[]>([]);
+  const waveSourcesRef = useRef<WaveSource[]>([]);
 
   const { camera } = useThree();
   const {
@@ -67,24 +69,25 @@ export default function Scene({ latestTap }: SceneProps) {
       // Perturb system
       perturbSystem(0.3);
 
-      // Store tap influence for shape morphing
-      const isHold = latestTap.duration >= 200;
-      const strength = isHold ? 0.8 : 0.5;
+      // Create wave source based on tap type
+      const isQuickTap = latestTap.duration < 200;
 
-      tapInfluencesRef.current.push({
+      waveSourcesRef.current.push({
         worldPoint: worldPoint.clone(),
-        strength,
-        isHold,
+        amplitude: isQuickTap ? 0.35 : 0.15,  // Quick taps = bigger waves
+        frequency: isQuickTap ? 2.5 : 1.5,     // Quick taps = higher frequency
+        speed: isQuickTap ? 8 : 5,             // Quick taps = faster propagation
         timestamp: Date.now(),
+        isQuickTap,
       });
 
-      // Keep only recent influences (last 10 taps)
-      if (tapInfluencesRef.current.length > 10) {
-        tapInfluencesRef.current.shift();
+      // Keep only recent wave sources (last 15)
+      if (waveSourcesRef.current.length > 15) {
+        waveSourcesRef.current.shift();
       }
 
       // Quick tap vs hold - particle behavior
-      if (latestTap.duration < 200) {
+      if (isQuickTap) {
         // Quick tap = attract
         particlesRef.current.attractToPoint(worldPoint, 0.5);
       } else {
@@ -100,17 +103,11 @@ export default function Scene({ latestTap }: SceneProps) {
     timeRef.current += delta;
     tick(delta);
 
-    // Decay tap influences over time
+    // Remove old wave sources (waves last 2 seconds)
     const now = Date.now();
-    tapInfluencesRef.current = tapInfluencesRef.current.filter(
-      influence => now - influence.timestamp < 3000 // Keep for 3 seconds
+    waveSourcesRef.current = waveSourcesRef.current.filter(
+      wave => (now - wave.timestamp) / 1000 < 2.0
     );
-
-    // Update strength based on age
-    tapInfluencesRef.current.forEach(influence => {
-      const age = (now - influence.timestamp) / 3000; // 0 to 1
-      influence.strength *= Math.max(0, 1 - age * 0.3); // Decay strength
-    });
 
     // Smooth hue transition based on chaos
     const targetHue = chaosLevel * 360;
@@ -127,7 +124,7 @@ export default function Scene({ latestTap }: SceneProps) {
       material.color = color;
       material.emissive = color.clone().multiplyScalar(0.4);
 
-      // Morphing based on energy AND tap influences
+      // Morphing based on energy AND propagating waves
       const geometry = sphereRef.current.geometry as THREE.SphereGeometry;
       const positionAttribute = geometry.attributes.position;
 
@@ -145,22 +142,32 @@ export default function Scene({ latestTap }: SceneProps) {
 
         let distortion = 1 + noise * energy * 0.08;
 
-        // Add tap-based deformations
-        tapInfluencesRef.current.forEach(influence => {
-          const distance = vertex.distanceTo(influence.worldPoint);
-          const maxDistance = 8; // Influence radius
+        // Add wave-based deformations
+        waveSourcesRef.current.forEach(wave => {
+          const distance = vertex.distanceTo(wave.worldPoint);
+          const timeElapsed = (now - wave.timestamp) / 1000; // in seconds
 
-          if (distance < maxDistance) {
-            const proximity = 1 - (distance / maxDistance);
-            const tapEffect = proximity * influence.strength;
+          // Calculate wave front position
+          const waveFront = wave.speed * timeElapsed;
 
-            if (influence.isHold) {
-              // Holds create smooth bulges outward
-              distortion += tapEffect * 0.15 * Math.sin(proximity * Math.PI);
-            } else {
-              // Quick taps create sharp spikes
-              distortion += tapEffect * 0.25 * Math.pow(proximity, 2);
-            }
+          // Wave exists in a band around the wave front
+          const distanceFromFront = Math.abs(distance - waveFront);
+          const waveWidth = 2.0; // Width of the wave band
+
+          if (distanceFromFront < waveWidth) {
+            // Wave amplitude decays over time
+            const timeDecay = Math.max(0, 1 - timeElapsed / 2.0);
+
+            // Wave shape - strongest at center of band
+            const bandPosition = 1 - (distanceFromFront / waveWidth);
+
+            // Create sine wave oscillation
+            const phase = distance * wave.frequency - timeElapsed * 5;
+            const waveOscillation = Math.sin(phase) * bandPosition;
+
+            // Apply wave deformation
+            const waveEffect = wave.amplitude * waveOscillation * timeDecay;
+            distortion += waveEffect;
           }
         });
 
@@ -171,14 +178,14 @@ export default function Scene({ latestTap }: SceneProps) {
       positionAttribute.needsUpdate = true;
       geometry.computeVertexNormals();
 
-      // Rotation - influenced by tap activity
-      const rotationSpeed = 0.2 + (tapInfluencesRef.current.length * 0.05);
+      // Rotation - influenced by wave activity
+      const rotationSpeed = 0.2 + (waveSourcesRef.current.length * 0.05);
       sphereRef.current.rotation.y += delta * rotationSpeed;
       sphereRef.current.rotation.x += delta * (rotationSpeed * 0.5);
 
-      // Pulsation - more dramatic with tap activity
-      const tapActivity = Math.min(tapInfluencesRef.current.length / 10, 1);
-      const pulseIntensity = energy * 0.03 + tapActivity * 0.05;
+      // Pulsation - more dramatic with wave activity
+      const waveActivity = Math.min(waveSourcesRef.current.length / 15, 1);
+      const pulseIntensity = energy * 0.03 + waveActivity * 0.05;
       const scale = 1 + Math.sin(timeRef.current * 1.5) * pulseIntensity;
       sphereRef.current.scale.setScalar(scale);
     }
