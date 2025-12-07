@@ -3,43 +3,30 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import { Suspense, useRef, useEffect, useState } from 'react';
+import { Suspense, useRef, useState, useCallback } from 'react';
 import Scene from './Scene';
 import EmotionalInterface from './EmotionalInterface';
-import { TapAnalyzer } from '@/agency/input/tapAnalyzer';
+
+export interface TapEvent {
+  x: number;
+  y: number;
+  duration: number;
+  timestamp: number;
+}
 
 export default function SimulationCanvas() {
-  const tapAnalyzerRef = useRef<TapAnalyzer | null>(null);
-  const [tapAnalyzer, setTapAnalyzer] = useState<TapAnalyzer | null>(null);
+  const [latestTap, setLatestTap] = useState<TapEvent | null>(null);
 
-  // Initialize tap analyzer
-  useEffect(() => {
-    if (!tapAnalyzerRef.current) {
-      tapAnalyzerRef.current = new TapAnalyzer();
-      setTapAnalyzer(tapAnalyzerRef.current);
-    }
+  // Handle tap from EmotionalInterface
+  const handleTap = useCallback((x: number, y: number, duration: number) => {
+    const tapEvent: TapEvent = {
+      x,
+      y,
+      duration,
+      timestamp: Date.now(),
+    };
+    setLatestTap(tapEvent);
   }, []);
-
-  // Handle pointer events globally
-  useEffect(() => {
-    if (!tapAnalyzer) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      tapAnalyzer.startTap(event.clientX, event.clientY);
-    };
-
-    const handlePointerUp = (event: PointerEvent) => {
-      tapAnalyzer.endTap(event.clientX, event.clientY);
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointerup', handlePointerUp);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [tapAnalyzer]);
 
   return (
     <>
@@ -55,7 +42,7 @@ export default function SimulationCanvas() {
         <color attach="background" args={['#000000']} />
 
         <Suspense fallback={null}>
-          <Scene />
+          <Scene latestTap={latestTap} />
         </Suspense>
 
         <OrbitControls
@@ -74,7 +61,7 @@ export default function SimulationCanvas() {
       </Canvas>
 
       {/* Emotional Interface Overlay */}
-      {tapAnalyzer && <EmotionalInterface tapAnalyzer={tapAnalyzer} />}
+      <EmotionalInterface onTap={handleTap} />
     </>
   );
 }

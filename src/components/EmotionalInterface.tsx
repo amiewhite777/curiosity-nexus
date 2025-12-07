@@ -1,126 +1,183 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { TapAnalyzer, EmotionalState } from '@/agency/input/tapAnalyzer';
-import { getRandomQuestion, EmotionalQuestion } from '@/data/emotionalQuestions';
-import { determineArchetype, Archetype } from '@/data/archetypes';
-import { useSimulationStore } from '@/store/simulationStore';
+import { useState, useEffect, useRef } from 'react';
+import { analyzeArchetype, Archetype } from '@/data/archetypes30';
 
-interface Props {
-  tapAnalyzer: TapAnalyzer;
+interface TapData {
+  x: number;
+  y: number;
+  duration: number;
+  timestamp: number;
 }
 
-export default function EmotionalInterface({ tapAnalyzer }: Props) {
-  const [currentQuestion, setCurrentQuestion] = useState<EmotionalQuestion | null>(null);
-  const [emotionalState, setEmotionalState] = useState<EmotionalState | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+interface Props {
+  onTap: (x: number, y: number, duration: number) => void;
+}
+
+const QUESTIONS = [
+  "What scares you most about tomorrow?",
+  "When was the last time you felt truly alive?",
+  "What part of yourself do you hide from others?",
+  "If no one was watching, who would you become?",
+  "What truth are you avoiding right now?",
+];
+
+export default function EmotionalInterface({ onTap }: Props) {
   const [sessionStarted, setSessionStarted] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
-  const [questionNumber, setQuestionNumber] = useState(0);
-  const [emotionHistory, setEmotionHistory] = useState<string[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [collectingTaps, setCollectingTaps] = useState(false);
+  const [tapData, setTapData] = useState<TapData[][]>([[], [], [], [], []]);
+  const [currentQuestionTaps, setCurrentQuestionTaps] = useState<TapData[]>([]);
   const [finalArchetype, setFinalArchetype] = useState<Archetype | null>(null);
   const [showArchetypeReveal, setShowArchetypeReveal] = useState(false);
 
-  const { setChaosLevel, setCoherence, updateTemperature } = useSimulationStore();
+  const tapStartTimeRef = useRef<number>(0);
+  const questionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const FLASH_DURATION = 3500; // 3.5 seconds
+  const MAX_TAPS_PER_QUESTION = 100;
   const TOTAL_QUESTIONS = 5;
 
-  // Start session with first question
+  // Start session
   const startSession = () => {
     setSessionStarted(true);
-    setQuestionNumber(1);
-    setCurrentQuestion(getRandomQuestion());
-    setEmotionHistory([]);
+    setCurrentQuestionIndex(0);
+    setTapData([[], [], [], [], []]);
+    setCurrentQuestionTaps([]);
     setFinalArchetype(null);
     setShowArchetypeReveal(false);
-    tapAnalyzer.reset();
-    setTapCount(0);
-    setShowAnalysis(false);
+    showNextQuestion();
   };
 
-  // Analyze current tapping pattern
-  const analyze = () => {
-    const state = tapAnalyzer.analyzeEmotion();
-    if (state) {
-      setEmotionalState(state);
-      setShowAnalysis(true);
+  // Show question for 3.5 seconds then hide
+  const showNextQuestion = () => {
+    setShowQuestion(true);
+    setCollectingTaps(false);
+    setCurrentQuestionTaps([]);
 
-      // Add to emotion history
-      const newHistory = [...emotionHistory, state.emotion];
-      setEmotionHistory(newHistory);
+    questionTimerRef.current = setTimeout(() => {
+      setShowQuestion(false);
+      setCollectingTaps(true);
+    }, FLASH_DURATION);
+  };
 
-      // Update simulation based on detected emotion
-      const chaosMap: Record<string, number> = {
-        anxious: 0.85,
-        angry: 0.95,
-        excited: 0.7,
-        uncertain: 0.6,
-        contemplative: 0.4,
-        calm: 0.2,
-        peaceful: 0.1,
-      };
+  // Handle tap down
+  const handleTapStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!collectingTaps) return;
+    tapStartTimeRef.current = Date.now();
+  };
 
-      setChaosLevel(chaosMap[state.emotion] || 0.5);
-      setCoherence(1 - (chaosMap[state.emotion] || 0.5));
-      updateTemperature(state.intensity * 2);
+  // Handle tap release
+  const handleTapEnd = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!collectingTaps || currentQuestionTaps.length >= MAX_TAPS_PER_QUESTION) return;
 
-      // If this was the 5th question, prepare archetype reveal
-      if (questionNumber === TOTAL_QUESTIONS) {
-        const archetype = determineArchetype(newHistory);
-        setFinalArchetype(archetype);
+    const duration = Date.now() - tapStartTimeRef.current;
+    let x: number, y: number;
 
-        // Apply archetype color to simulation
-        setChaosLevel(0.3); // Calm down for reveal
-        setTimeout(() => {
-          setShowArchetypeReveal(true);
-        }, 2000);
-      }
+    if ('touches' in e) {
+      const touch = e.changedTouches[0];
+      x = touch.clientX / window.innerWidth;
+      y = touch.clientY / window.innerHeight;
+    } else {
+      x = e.clientX / window.innerWidth;
+      y = e.clientY / window.innerHeight;
+    }
+
+    const newTap: TapData = {
+      x,
+      y,
+      duration,
+      timestamp: Date.now(),
+    };
+
+    const updatedTaps = [...currentQuestionTaps, newTap];
+    setCurrentQuestionTaps(updatedTaps);
+
+    // Call parent's onTap for visual feedback
+    onTap(x, y, duration);
+
+    // If we've reached 100 taps, move to next question
+    if (updatedTaps.length >= MAX_TAPS_PER_QUESTION) {
+      advanceToNextQuestion(updatedTaps);
     }
   };
 
-  // Next question
-  const nextQuestion = () => {
-    if (questionNumber < TOTAL_QUESTIONS) {
-      setQuestionNumber(questionNumber + 1);
-      setCurrentQuestion(getRandomQuestion());
-      tapAnalyzer.reset();
-      setTapCount(0);
-      setShowAnalysis(false);
-      setEmotionalState(null);
+  // Advance to next question or finish
+  const advanceToNextQuestion = (taps: TapData[]) => {
+    // Save current question's taps
+    const newTapData = [...tapData];
+    newTapData[currentQuestionIndex] = taps;
+    setTapData(newTapData);
+
+    if (currentQuestionIndex < TOTAL_QUESTIONS - 1) {
+      // Move to next question
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCollectingTaps(false);
+      setTimeout(() => {
+        showNextQuestion();
+      }, 500);
+    } else {
+      // All questions complete - analyze
+      analyzeAllData(newTapData);
     }
   };
 
-  // Update tap count
+  // Analyze all tap data
+  const analyzeAllData = (allTaps: TapData[][]) => {
+    setCollectingTaps(false);
+
+    // Flatten all taps into one array
+    const flatTaps = allTaps.flat();
+
+    // Run analysis
+    const archetype = analyzeArchetype(flatTaps);
+    setFinalArchetype(archetype);
+
+    // Show reveal after 2 seconds
+    setTimeout(() => {
+      setShowArchetypeReveal(true);
+    }, 2000);
+  };
+
+  // Cleanup timer on unmount
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTapCount(tapAnalyzer.getTapCount());
-    }, 100);
-    return () => clearInterval(interval);
-  }, [tapAnalyzer]);
+    return () => {
+      if (questionTimerRef.current) {
+        clearTimeout(questionTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Calculate total taps across all questions
+  const totalTaps = tapData.reduce((sum, taps) => sum + taps.length, 0) + currentQuestionTaps.length;
 
   // Welcome screen
   if (!sessionStarted) {
     return (
       <div style={styles.overlay}>
         <div style={styles.welcomeCard}>
-          <h1 style={styles.title}>Emotional Mirror</h1>
+          <h1 style={styles.title}>Curiosity Nexus</h1>
           <p style={styles.subtitle}>
-            Five questions.
+            Five questions will flash before you.
             <br />
-            Five emotional signatures.
-            <br />
-            One truth revealed.
+            Each for only 3 seconds.
             <br />
             <br />
-            I will not analyze <em>what</em> you think.
+            After each vanishes, touch the energy orb.
             <br />
-            I will analyze <em>how</em> you feel.
+            Let your instinct guide you.
             <br />
             <br />
-            Your archetype awaits.
+            I will not judge your answers.
+            <br />
+            I will analyze how you <em>touch</em>.
+            <br />
+            <br />
+            Your archetype awaits in the pattern of your interaction.
           </p>
           <button onClick={startSession} style={styles.button}>
-            Discover Who You Are
+            Begin Discovery
           </button>
         </div>
       </div>
@@ -165,15 +222,30 @@ export default function EmotionalInterface({ tapAnalyzer }: Props) {
             <p style={styles.shadowText}>{finalArchetype.shadowSide}</p>
           </div>
 
-          <div style={styles.emotionHistorySection}>
-            <h3 style={styles.sectionTitle}>Your Emotional Journey</h3>
-            <div style={styles.emotionTags}>
-              {emotionHistory.map((emotion, idx) => (
-                <span key={idx} style={styles.emotionTag}>
-                  Q{idx + 1}: {emotion}
-                </span>
-              ))}
+          <div style={styles.patternSection}>
+            <h3 style={styles.sectionTitle}>Your Patterns</h3>
+            <div style={styles.patternGrid}>
+              <div style={styles.patternItem}>
+                <span style={styles.patternLabel}>Spatial</span>
+                <span style={styles.patternValue}>{finalArchetype.spatialPattern}</span>
+              </div>
+              <div style={styles.patternItem}>
+                <span style={styles.patternLabel}>Temporal</span>
+                <span style={styles.patternValue}>{finalArchetype.temporalPattern}</span>
+              </div>
+              <div style={styles.patternItem}>
+                <span style={styles.patternLabel}>Energy</span>
+                <span style={styles.patternValue}>{finalArchetype.energyPattern}</span>
+              </div>
+              <div style={styles.patternItem}>
+                <span style={styles.patternLabel}>Consistency</span>
+                <span style={styles.patternValue}>{finalArchetype.consistencyPattern}</span>
+              </div>
             </div>
+          </div>
+
+          <div style={styles.statsSection}>
+            <p style={styles.statsText}>Analyzed {totalTaps} touch interactions</p>
           </div>
 
           <button
@@ -190,80 +262,62 @@ export default function EmotionalInterface({ tapAnalyzer }: Props) {
     );
   }
 
-  // Question and analysis screens
+  // Question flash or tap collection screen
   return (
-    <div style={styles.interface}>
-      {/* Progress indicator */}
-      <div style={styles.progressBar}>
-        {Array.from({ length: TOTAL_QUESTIONS }).map((_, idx) => (
-          <div
-            key={idx}
-            style={{
-              ...styles.progressDot,
-              background:
-                idx < questionNumber
-                  ? 'rgba(100, 150, 255, 0.8)'
-                  : 'rgba(255, 255, 255, 0.2)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Question Card */}
-      {currentQuestion && !showAnalysis && (
-        <div style={styles.questionCard}>
-          <div style={styles.questionHeader}>
+    <div
+      style={styles.fullScreenInteraction}
+      onMouseDown={handleTapStart}
+      onMouseUp={handleTapEnd}
+      onTouchStart={handleTapStart}
+      onTouchEnd={handleTapEnd}
+    >
+      {/* Flash question (visible for 3.5 seconds) */}
+      {showQuestion && (
+        <div style={styles.questionFlash}>
+          <div style={styles.questionFlashCard}>
             <span style={styles.questionNumber}>
-              Question {questionNumber} of {TOTAL_QUESTIONS}
+              Question {currentQuestionIndex + 1} of {TOTAL_QUESTIONS}
             </span>
-          </div>
-          <p style={styles.question}>{currentQuestion.text}</p>
-          <p style={styles.instruction}>Tap anywhere to respond...</p>
-          <div style={styles.tapCounter}>
-            {tapCount > 0 && (
-              <>
-                <span style={styles.tapCountText}>{tapCount} taps</span>
-                {tapCount >= 3 && (
-                  <button onClick={analyze} style={styles.analyzeButton}>
-                    Analyze Response
-                  </button>
-                )}
-              </>
-            )}
+            <p style={styles.flashQuestionText}>{QUESTIONS[currentQuestionIndex]}</p>
           </div>
         </div>
       )}
 
-      {/* Emotion Analysis */}
-      {showAnalysis && emotionalState && !showArchetypeReveal && (
-        <div
-          style={{
-            ...styles.analysisCard,
-            borderColor: `rgb(${emotionalState.color.r * 255}, ${emotionalState.color.g * 255}, ${emotionalState.color.b * 255})`,
-          }}
-        >
-          <div style={styles.emotionLabel}>
-            <span
-              style={{
-                ...styles.emotionName,
-                color: `rgb(${emotionalState.color.r * 255}, ${emotionalState.color.g * 255}, ${emotionalState.color.b * 255})`,
-              }}
-            >
-              {emotionalState.emotion.toUpperCase()}
-            </span>
-            <span style={styles.intensity}>
-              {Math.round(emotionalState.intensity * 100)}%
-            </span>
+      {/* Tap collection UI (minimal, non-intrusive) */}
+      {collectingTaps && (
+        <div style={styles.tapCollectionUI}>
+          {/* Progress indicators - top of screen */}
+          <div style={styles.progressBar}>
+            {Array.from({ length: TOTAL_QUESTIONS }).map((_, idx) => (
+              <div
+                key={idx}
+                style={{
+                  ...styles.progressDot,
+                  background:
+                    idx < currentQuestionIndex
+                      ? 'rgba(100, 200, 255, 0.8)'
+                      : idx === currentQuestionIndex
+                      ? 'rgba(100, 200, 255, 0.4)'
+                      : 'rgba(255, 255, 255, 0.15)',
+                }}
+              />
+            ))}
           </div>
-          <p style={styles.description}>{emotionalState.description}</p>
 
-          {questionNumber < TOTAL_QUESTIONS ? (
-            <button onClick={nextQuestion} style={styles.nextButton}>
-              Next Question →
-            </button>
-          ) : (
-            <p style={styles.finalMessage}>Calculating your archetype...</p>
-          )}
+          {/* Tap counter - bottom right corner */}
+          <div style={styles.tapCounter}>
+            <div style={styles.tapCountCircle}>
+              <span style={styles.tapCountNumber}>{currentQuestionTaps.length}</span>
+              <span style={styles.tapCountMax}>/ {MAX_TAPS_PER_QUESTION}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analyzing state */}
+      {!showQuestion && !collectingTaps && !showArchetypeReveal && (
+        <div style={styles.analyzingOverlay}>
+          <p style={styles.analyzingText}>Analyzing your patterns...</p>
         </div>
       )}
     </div>
@@ -280,7 +334,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'rgba(0, 0, 0, 0.7)',
+    background: 'rgba(0, 0, 0, 0.85)',
     zIndex: 1000,
     backdropFilter: 'blur(20px)',
     padding: '20px',
@@ -320,137 +374,125 @@ const styles = {
     fontWeight: '400',
     letterSpacing: '0.3px',
   },
-  interface: {
+  fullScreenInteraction: {
     position: 'fixed' as const,
-    bottom: '32px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 100,
-    pointerEvents: 'none' as const,
-    width: '90%',
-    maxWidth: '520px',
-  },
-  progressBar: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '8px',
-    marginBottom: '16px',
-    pointerEvents: 'none' as const,
-  },
-  progressDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    transition: 'all 0.3s ease',
-  },
-  questionCard: {
-    background: 'rgba(10, 10, 10, 0.5)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-    borderRadius: '20px',
-    padding: '32px',
-    backdropFilter: 'blur(20px)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    zIndex: 10,
     pointerEvents: 'auto' as const,
   },
-  questionHeader: {
-    marginBottom: '20px',
+  questionFlash: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    pointerEvents: 'none' as const,
+    animation: 'fadeIn 0.4s ease',
+  },
+  questionFlashCard: {
+    background: 'rgba(10, 10, 10, 0.75)',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    borderRadius: '28px',
+    padding: '48px 56px',
+    maxWidth: '700px',
+    textAlign: 'center' as const,
+    backdropFilter: 'blur(30px)',
+    boxShadow: '0 12px 48px rgba(0, 0, 0, 0.6)',
   },
   questionNumber: {
     fontSize: '10px',
     color: 'rgba(255, 255, 255, 0.4)',
     textTransform: 'uppercase' as const,
-    letterSpacing: '1.5px',
+    letterSpacing: '2px',
     fontWeight: '500',
+    display: 'block',
+    marginBottom: '20px',
   },
-  question: {
-    fontSize: '22px',
+  flashQuestionText: {
+    fontSize: '32px',
     fontWeight: '300',
     color: '#fff',
-    marginBottom: '20px',
-    lineHeight: '1.5',
-    letterSpacing: '-0.3px',
+    lineHeight: '1.4',
+    letterSpacing: '-0.5px',
+    margin: 0,
   },
-  instruction: {
-    fontSize: '12px',
-    color: 'rgba(255, 255, 255, 0.45)',
-    fontWeight: '300',
+  tapCollectionUI: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    pointerEvents: 'none' as const,
+    zIndex: 50,
+  },
+  progressBar: {
+    position: 'absolute' as const,
+    top: '32px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    gap: '10px',
+  },
+  progressDot: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    transition: 'all 0.4s ease',
   },
   tapCounter: {
-    marginTop: '20px',
+    position: 'absolute' as const,
+    bottom: '32px',
+    right: '32px',
+  },
+  tapCountCircle: {
+    background: 'rgba(10, 10, 10, 0.6)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: '50%',
+    width: '80px',
+    height: '80px',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
-    gap: '10px',
+    justifyContent: 'center',
+    backdropFilter: 'blur(12px)',
   },
-  tapCountText: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '14px',
-  },
-  analyzeButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+  tapCountNumber: {
+    fontSize: '24px',
+    fontWeight: '300',
     color: '#fff',
-    padding: '12px 28px',
-    fontSize: '13px',
-    borderRadius: '100px',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    fontWeight: '400',
+    lineHeight: '1',
   },
-  analysisCard: {
-    background: 'rgba(10, 10, 10, 0.6)',
-    border: '1.5px solid',
-    borderRadius: '20px',
-    padding: '32px',
-    backdropFilter: 'blur(20px)',
-    boxShadow: '0 8px 40px rgba(0, 0, 0, 0.4)',
-    pointerEvents: 'auto' as const,
+  tapCountMax: {
+    fontSize: '11px',
+    color: 'rgba(255, 255, 255, 0.4)',
+    marginTop: '4px',
   },
-  emotionLabel: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
+  analyzingOverlay: {
+    position: 'fixed' as const,
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 100,
   },
-  emotionName: {
-    fontSize: '32px',
-    fontWeight: '600',
-    letterSpacing: '3px',
-  },
-  intensity: {
-    fontSize: '14px',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  description: {
-    fontSize: '16px',
-    lineHeight: '1.6',
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: '25px',
-  },
-  nextButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    color: '#fff',
-    padding: '14px 32px',
-    fontSize: '14px',
-    borderRadius: '100px',
-    cursor: 'pointer',
-    width: '100%',
-    fontWeight: '400',
-  },
-  finalMessage: {
-    fontSize: '16px',
+  analyzingText: {
+    fontSize: '18px',
     color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center' as const,
+    fontWeight: '300',
     fontStyle: 'italic',
-    padding: '15px',
   },
   archetypeCard: {
     background: 'rgba(10, 10, 10, 0.7)',
     border: '2px solid',
     borderRadius: '28px',
     padding: '56px',
-    maxWidth: '680px',
+    maxWidth: '720px',
     backdropFilter: 'blur(24px)',
     maxHeight: '90vh',
     overflowY: 'auto' as const,
@@ -526,21 +568,43 @@ const styles = {
     fontStyle: 'italic',
     fontWeight: '300',
   },
-  emotionHistorySection: {
-    marginBottom: '20px',
+  patternSection: {
+    marginBottom: '32px',
   },
-  emotionTags: {
+  patternGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+  },
+  patternItem: {
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '12px',
+    padding: '16px',
     display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: '10px',
+    flexDirection: 'column' as const,
+    gap: '6px',
   },
-  emotionTag: {
-    background: 'rgba(255, 255, 255, 0.08)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    padding: '8px 16px',
-    borderRadius: '100px',
-    fontSize: '12px',
-    color: 'rgba(255, 255, 255, 0.7)',
+  patternLabel: {
+    fontSize: '10px',
+    color: 'rgba(255, 255, 255, 0.4)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '1.2px',
+    fontWeight: '500',
+  },
+  patternValue: {
+    fontSize: '14px',
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '400',
+    textTransform: 'capitalize' as const,
+  },
+  statsSection: {
+    marginBottom: '20px',
+    textAlign: 'center' as const,
+  },
+  statsText: {
+    fontSize: '13px',
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontWeight: '300',
   },
 };

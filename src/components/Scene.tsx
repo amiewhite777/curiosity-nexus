@@ -5,17 +5,20 @@ import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useSimulationStore } from '@/store/simulationStore';
 import { EnergyParticles } from '@/visuals/particles/energyParticles';
+import type { TapEvent } from './SimulationCanvas';
 
-export default function Scene() {
+interface SceneProps {
+  latestTap: TapEvent | null;
+}
+
+export default function Scene({ latestTap }: SceneProps) {
   const sphereRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<EnergyParticles | null>(null);
   const timeRef = useRef(0);
   const hueRef = useRef(0);
-  const interactionPointRef = useRef<THREE.Vector3 | null>(null);
-  const interactionStrengthRef = useRef(0);
-  const pressDurationRef = useRef(0);
+  const lastTapTimestampRef = useRef(0);
 
-  const { camera, raycaster, pointer } = useThree();
+  const { camera } = useThree();
   const {
     chaosLevel,
     energy,
@@ -30,40 +33,50 @@ export default function Scene() {
     }
   }, []);
 
-  // Handle pointer down
+  // Handle taps from EmotionalInterface
   useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      pressDurationRef.current = 0;
-      interactionStrengthRef.current = 0.3;
-      perturbSystem(0.3);
+    if (!latestTap || latestTap.timestamp === lastTapTimestampRef.current) return;
+
+    lastTapTimestampRef.current = latestTap.timestamp;
+
+    // Convert normalized screen coords (0-1) to world space
+    const ndcX = (latestTap.x * 2) - 1;
+    const ndcY = -(latestTap.y * 2) + 1;
+
+    // Create raycaster from screen position
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+    // Intersect with plane at z=0
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const worldPoint = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, worldPoint);
+
+    if (worldPoint && particlesRef.current) {
+      // Color shift
       hueRef.current = (hueRef.current + 30) % 360;
-    };
 
-    const handlePointerUp = () => {
-      interactionStrengthRef.current = 0;
-      pressDurationRef.current = 0;
-    };
+      // Perturb system
+      perturbSystem(0.3);
 
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointerup', handlePointerUp);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [perturbSystem]);
+      // Quick tap vs hold
+      if (latestTap.duration < 200) {
+        // Quick tap = attract
+        particlesRef.current.attractToPoint(worldPoint, 0.5);
+      } else {
+        // Hold = repel + burst
+        particlesRef.current.repelFromPoint(worldPoint, 0.5);
+        particlesRef.current.burst(worldPoint, 15);
+      }
+    }
+  }, [latestTap, camera, perturbSystem]);
 
   // Main animation loop
   useFrame((state, delta) => {
     timeRef.current += delta;
     tick(delta);
 
-    // Update press duration
-    if (interactionStrengthRef.current > 0) {
-      pressDurationRef.current += delta;
-    }
-
-    // Smooth hue transition
+    // Smooth hue transition based on chaos
     const targetHue = chaosLevel * 360;
     hueRef.current += (targetHue - hueRef.current) * 0.05;
 
@@ -71,30 +84,6 @@ export default function Scene() {
     const saturation = 0.9;
     const lightness = 0.5 + Math.sin(timeRef.current * 2) * 0.1;
     const color = new THREE.Color().setHSL(hueRef.current / 360, saturation, lightness);
-
-    // Get world position from pointer
-    raycaster.setFromCamera(pointer, camera);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-    const worldPoint = new THREE.Vector3();
-    raycaster.ray.intersectPlane(plane, worldPoint);
-
-    if (interactionStrengthRef.current > 0 && worldPoint) {
-      interactionPointRef.current = worldPoint;
-
-      // Particle interaction based on press duration
-      if (particlesRef.current) {
-        if (pressDurationRef.current < 0.2) {
-          // Quick tap = attract
-          particlesRef.current.attractToPoint(worldPoint, interactionStrengthRef.current);
-        } else {
-          // Hold = repel + burst
-          particlesRef.current.repelFromPoint(worldPoint, interactionStrengthRef.current);
-          if (Math.random() > 0.95) {
-            particlesRef.current.burst(worldPoint, 5);
-          }
-        }
-      }
-    }
 
     // Update sphere
     if (sphereRef.current) {
@@ -140,9 +129,6 @@ export default function Scene() {
     if (particlesRef.current) {
       particlesRef.current.update(delta, hueRef.current, energy);
     }
-
-    // Decay interaction
-    interactionStrengthRef.current *= 0.95;
   });
 
   return (
