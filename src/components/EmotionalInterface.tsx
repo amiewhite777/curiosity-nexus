@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { analyzeArchetype, Archetype } from '@/data/archetypes30';
+import { getAudioManager } from '@/audio/audioManager';
 
 interface TapData {
   x: number;
@@ -70,6 +71,7 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   const tapStartTimeRef = useRef<number>(0);
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const audioManager = useRef(getAudioManager());
 
   const FLASH_DURATION = 3500; // 3.5 seconds
   const MAX_TAPS_PER_QUESTION = 100;
@@ -193,7 +195,10 @@ export default function EmotionalInterface({ onTap }: Props) {
     const currentSlide = INTRO_SLIDES[introSlideIndex];
     const isLastSlide = introSlideIndex === INTRO_SLIDES.length - 1;
 
-    const handleNext = () => {
+    const handleNext = async () => {
+      // Enable audio on first user interaction (required for desktop browsers)
+      await audioManager.current.resume();
+
       if (isLastSlide) {
         startSession();
       } else {
