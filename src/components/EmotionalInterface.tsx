@@ -22,7 +22,43 @@ const QUESTIONS = [
   "What truth are you avoiding right now?",
 ];
 
+const INTRO_SLIDES = [
+  {
+    title: "Curiosity Nexus",
+    text: "An exploration of who you are through touch.",
+  },
+  {
+    title: "How it works",
+    text: "A question will flash for 3 seconds.",
+  },
+  {
+    title: "Your response",
+    text: "When it disappears, tap anywhere on the screen.",
+  },
+  {
+    title: "Express yourself",
+    text: "Tap up to 100 times - fast, slow, hold, or quick taps.",
+  },
+  {
+    title: "Feel, don't think",
+    text: "Let your emotions guide WHERE and HOW you tap.",
+  },
+  {
+    title: "Repeat",
+    text: "You'll respond to 5 questions total.",
+  },
+  {
+    title: "What I analyze",
+    text: "Not your answers - but how you touch.\nThe rhythm, pressure, and position.",
+  },
+  {
+    title: "Ready?",
+    text: "Your archetype awaits in the pattern of your interaction.",
+  },
+];
+
 export default function EmotionalInterface({ onTap }: Props) {
+  const [introSlideIndex, setIntroSlideIndex] = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
@@ -152,36 +188,49 @@ export default function EmotionalInterface({ onTap }: Props) {
   // Calculate total taps across all questions
   const totalTaps = tapData.reduce((sum, taps) => sum + taps.length, 0) + currentQuestionTaps.length;
 
-  // Welcome screen
+  // Welcome screen with slides
   if (!sessionStarted) {
+    const currentSlide = INTRO_SLIDES[introSlideIndex];
+    const isLastSlide = introSlideIndex === INTRO_SLIDES.length - 1;
+
+    const handleNext = () => {
+      if (isLastSlide) {
+        startSession();
+      } else {
+        setIntroSlideIndex(introSlideIndex + 1);
+      }
+    };
+
     return (
       <div style={styles.overlay}>
         <div style={styles.welcomeCard}>
-          <h1 style={styles.title}>Curiosity Nexus</h1>
-          <p style={styles.subtitle}>
-            <strong>How it works:</strong>
-            <br />
-            <br />
-            1. A question will flash for 3 seconds
-            <br />
-            2. When it disappears, tap anywhere on the screen
-            <br />
-            3. Tap up to 100 times - tap fast, slow, hold, quick taps
-            <br />
-            4. Let your emotions guide WHERE and HOW you tap
-            <br />
-            5. Repeat for 5 questions
-            <br />
-            <br />
-            I don't analyze your answers.
-            <br />
-            I analyze <em>how you touch</em> - the rhythm, pressure, and position.
-            <br />
-            <br />
-            Your archetype awaits in the pattern of your interaction.
+          <h1 style={styles.title}>{currentSlide.title}</h1>
+          <p style={styles.slideText}>
+            {currentSlide.text.split('\n').map((line, idx) => (
+              <span key={idx}>
+                {line}
+                {idx < currentSlide.text.split('\n').length - 1 && <br />}
+              </span>
+            ))}
           </p>
-          <button onClick={startSession} style={styles.button}>
-            Begin Discovery
+
+          {/* Progress dots */}
+          <div style={styles.slideProgress}>
+            {INTRO_SLIDES.map((_, idx) => (
+              <div
+                key={idx}
+                style={{
+                  ...styles.slideDot,
+                  background: idx === introSlideIndex
+                    ? 'rgba(255, 255, 255, 0.9)'
+                    : 'rgba(255, 255, 255, 0.2)',
+                }}
+              />
+            ))}
+          </div>
+
+          <button onClick={handleNext} style={styles.button}>
+            {isLastSlide ? 'Begin Discovery' : 'Next'}
           </button>
         </div>
       </div>
@@ -348,7 +397,7 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: '24px',
     padding: '60px 50px',
-    maxWidth: '620px',
+    maxWidth: '500px',
     textAlign: 'center' as const,
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
   },
@@ -358,6 +407,29 @@ const styles = {
     marginBottom: '24px',
     color: '#fff',
     letterSpacing: '-0.5px',
+  },
+  slideText: {
+    fontSize: '18px',
+    lineHeight: '1.7',
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginBottom: '40px',
+    fontWeight: '300',
+    minHeight: '60px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slideProgress: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '8px',
+    marginBottom: '32px',
+  },
+  slideDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    transition: 'all 0.3s ease',
   },
   subtitle: {
     fontSize: '16px',
