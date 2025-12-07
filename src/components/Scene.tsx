@@ -11,12 +11,20 @@ interface SceneProps {
   latestTap: TapEvent | null;
 }
 
+interface TapInfluence {
+  worldPoint: THREE.Vector3;
+  strength: number;
+  isHold: boolean;
+  timestamp: number;
+}
+
 export default function Scene({ latestTap }: SceneProps) {
   const sphereRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<EnergyParticles | null>(null);
   const timeRef = useRef(0);
   const hueRef = useRef(0);
   const lastTapTimestampRef = useRef(0);
+  const tapInfluencesRef = useRef<TapInfluence[]>([]);
 
   const { camera } = useThree();
   const {
@@ -59,7 +67,23 @@ export default function Scene({ latestTap }: SceneProps) {
       // Perturb system
       perturbSystem(0.3);
 
-      // Quick tap vs hold
+      // Store tap influence for shape morphing
+      const isHold = latestTap.duration >= 200;
+      const strength = isHold ? 0.8 : 0.5;
+
+      tapInfluencesRef.current.push({
+        worldPoint: worldPoint.clone(),
+        strength,
+        isHold,
+        timestamp: Date.now(),
+      });
+
+      // Keep only recent influences (last 10 taps)
+      if (tapInfluencesRef.current.length > 10) {
+        tapInfluencesRef.current.shift();
+      }
+
+      // Quick tap vs hold - particle behavior
       if (latestTap.duration < 200) {
         // Quick tap = attract
         particlesRef.current.attractToPoint(worldPoint, 0.5);
@@ -76,6 +100,18 @@ export default function Scene({ latestTap }: SceneProps) {
     timeRef.current += delta;
     tick(delta);
 
+    // Decay tap influences over time
+    const now = Date.now();
+    tapInfluencesRef.current = tapInfluencesRef.current.filter(
+      influence => now - influence.timestamp < 3000 // Keep for 3 seconds
+    );
+
+    // Update strength based on age
+    tapInfluencesRef.current.forEach(influence => {
+      const age = (now - influence.timestamp) / 3000; // 0 to 1
+      influence.strength *= Math.max(0, 1 - age * 0.3); // Decay strength
+    });
+
     // Smooth hue transition based on chaos
     const targetHue = chaosLevel * 360;
     hueRef.current += (targetHue - hueRef.current) * 0.05;
@@ -91,7 +127,7 @@ export default function Scene({ latestTap }: SceneProps) {
       material.color = color;
       material.emissive = color.clone().multiplyScalar(0.4);
 
-      // Morphing based on energy
+      // Morphing based on energy AND tap influences
       const geometry = sphereRef.current.geometry as THREE.SphereGeometry;
       const positionAttribute = geometry.attributes.position;
 
@@ -102,26 +138,48 @@ export default function Scene({ latestTap }: SceneProps) {
           positionAttribute.getZ(i)
         );
 
-        const distance = vertex.length();
+        // Base noise animation
         const noise = Math.sin(vertex.x * 2 + timeRef.current * 2) *
                      Math.cos(vertex.y * 2 + timeRef.current * 1.5) *
                      Math.sin(vertex.z * 2 + timeRef.current * 1.8);
 
-        const distortion = 1 + noise * energy * 0.08;
-        vertex.normalize().multiplyScalar(3.5 * distortion);
+        let distortion = 1 + noise * energy * 0.08;
 
+        // Add tap-based deformations
+        tapInfluencesRef.current.forEach(influence => {
+          const distance = vertex.distanceTo(influence.worldPoint);
+          const maxDistance = 8; // Influence radius
+
+          if (distance < maxDistance) {
+            const proximity = 1 - (distance / maxDistance);
+            const tapEffect = proximity * influence.strength;
+
+            if (influence.isHold) {
+              // Holds create smooth bulges outward
+              distortion += tapEffect * 0.15 * Math.sin(proximity * Math.PI);
+            } else {
+              // Quick taps create sharp spikes
+              distortion += tapEffect * 0.25 * Math.pow(proximity, 2);
+            }
+          }
+        });
+
+        vertex.normalize().multiplyScalar(3.5 * distortion);
         positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
       }
 
       positionAttribute.needsUpdate = true;
       geometry.computeVertexNormals();
 
-      // Rotation
-      sphereRef.current.rotation.y += delta * 0.2;
-      sphereRef.current.rotation.x += delta * 0.1;
+      // Rotation - influenced by tap activity
+      const rotationSpeed = 0.2 + (tapInfluencesRef.current.length * 0.05);
+      sphereRef.current.rotation.y += delta * rotationSpeed;
+      sphereRef.current.rotation.x += delta * (rotationSpeed * 0.5);
 
-      // Pulsation
-      const scale = 1 + Math.sin(timeRef.current * 1.5) * energy * 0.03;
+      // Pulsation - more dramatic with tap activity
+      const tapActivity = Math.min(tapInfluencesRef.current.length / 10, 1);
+      const pulseIntensity = energy * 0.03 + tapActivity * 0.05;
+      const scale = 1 + Math.sin(timeRef.current * 1.5) * pulseIntensity;
       sphereRef.current.scale.setScalar(scale);
     }
 
