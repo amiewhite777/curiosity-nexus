@@ -89,7 +89,7 @@ export default function Scene() {
 
       {/* Main sphere - clean and beautiful */}
       <mesh ref={sphereRef}>
-        <sphereGeometry args={[2, 64, 64]} />
+        <sphereGeometry args={[3.5, 64, 64]} />
         <meshStandardMaterial
           color="#ffffff"
           metalness={0.2}
@@ -101,18 +101,18 @@ export default function Scene() {
 
       {/* Outline ring for definition */}
       <mesh ref={outlineRef}>
-        <torusGeometry args={[2.1, 0.02, 16, 100]} />
+        <torusGeometry args={[3.65, 0.025, 16, 100]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
       </mesh>
 
       {/* Secondary rings for depth */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[2.15, 0.01, 16, 100]} />
+        <torusGeometry args={[3.72, 0.015, 16, 100]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.3} />
       </mesh>
 
       <mesh rotation={[0, 0, Math.PI / 4]}>
-        <torusGeometry args={[2.12, 0.015, 16, 100]} />
+        <torusGeometry args={[3.68, 0.02, 16, 100]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.2} />
       </mesh>
     </>
