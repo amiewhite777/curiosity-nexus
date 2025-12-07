@@ -159,19 +159,23 @@ export default function EmotionalInterface({ onTap }: Props) {
         <div style={styles.welcomeCard}>
           <h1 style={styles.title}>Curiosity Nexus</h1>
           <p style={styles.subtitle}>
-            Five questions will flash before you.
-            <br />
-            Each for only 3 seconds.
+            <strong>How it works:</strong>
             <br />
             <br />
-            After each vanishes, touch the energy orb.
+            1. A question will flash for 3 seconds
             <br />
-            Let your instinct guide you.
+            2. When it disappears, tap anywhere on the screen
+            <br />
+            3. Tap up to 100 times - tap fast, slow, hold, quick taps
+            <br />
+            4. Let your emotions guide WHERE and HOW you tap
+            <br />
+            5. Repeat for 5 questions
             <br />
             <br />
-            I will not judge your answers.
+            I don't analyze your answers.
             <br />
-            I will analyze how you <em>touch</em>.
+            I analyze <em>how you touch</em> - the rhythm, pressure, and position.
             <br />
             <br />
             Your archetype awaits in the pattern of your interaction.
@@ -344,7 +348,7 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.08)',
     borderRadius: '24px',
     padding: '60px 50px',
-    maxWidth: '550px',
+    maxWidth: '620px',
     textAlign: 'center' as const,
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
   },
