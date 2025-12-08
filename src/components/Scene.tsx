@@ -19,7 +19,6 @@ interface WaveSource {
   frequency: number;
   speed: number;
   timestamp: number;
-  isQuickTap: boolean;
 }
 
 interface ShootingStar {
@@ -123,16 +122,13 @@ export default function Scene({ latestTap }: SceneProps) {
       // Perturb system
       perturbSystem(0.3);
 
-      // Create wave source based on tap type
-      const isQuickTap = latestTap.duration < 200;
-
+      // Create wave source
       waveSourcesRef.current.push({
         worldPoint: worldPoint.clone(),
-        amplitude: isQuickTap ? 0.35 : 0.15,  // Quick taps = bigger waves
-        frequency: isQuickTap ? 2.5 : 1.5,     // Quick taps = higher frequency
-        speed: isQuickTap ? 8 : 5,             // Quick taps = faster propagation
+        amplitude: 0.3,
+        frequency: 2.0,
+        speed: 6.5,
         timestamp: Date.now(),
-        isQuickTap,
       });
 
       // Keep only recent wave sources (last 15)
@@ -145,20 +141,12 @@ export default function Scene({ latestTap }: SceneProps) {
       audioManager.current.playTapSound({
         x: latestTap.x,
         y: latestTap.y,
-        duration: latestTap.duration,
         timestamp: latestTap.timestamp,
       });
 
-      // Particle behavior - ALWAYS burst on tap, plus attract/repel
-      if (isQuickTap) {
-        // Quick tap = attract + sharp burst
-        particlesRef.current.attractToPoint(worldPoint, 0.6);
-        particlesRef.current.burst(worldPoint, 25); // More particles!
-      } else {
-        // Hold = repel + sustained burst
-        particlesRef.current.repelFromPoint(worldPoint, 0.6);
-        particlesRef.current.burst(worldPoint, 40); // Even more particles!
-      }
+      // Particle behavior - attract + burst
+      particlesRef.current.attractToPoint(worldPoint, 0.6);
+      particlesRef.current.burst(worldPoint, 30);
     }
   }, [latestTap, camera, perturbSystem]);
 

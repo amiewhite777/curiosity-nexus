@@ -6,7 +6,6 @@
 export interface TapSound {
   x: number;        // 0-1, affects panning
   y: number;        // 0-1, affects pitch
-  duration: number; // milliseconds
   timestamp: number;
 }
 
@@ -17,11 +16,8 @@ export class AudioManager {
   private isInitialized = false;
   private activeOscillators: Set<OscillatorNode> = new Set();
 
-  // Base frequencies for different tap types
-  private readonly baseFrequencies = {
-    quick: 440,  // A4 - bright, alert
-    hold: 110,   // A2 - deep, resonant
-  };
+  // Base frequency for taps
+  private readonly baseFrequency = 330; // E4 - warm, pleasant
 
   // Pentatonic scale ratios (sounds good no matter what)
   private readonly scaleRatios = [1, 9/8, 5/4, 3/2, 5/3, 2];
@@ -85,33 +81,26 @@ export class AudioManager {
 
     console.log('🎵 Playing tap sound:', {
       contextState: this.context.state,
-      duration: tap.duration,
       x: tap.x.toFixed(2),
       y: tap.y.toFixed(2)
     });
 
     const now = this.context.currentTime;
-    const isQuickTap = tap.duration < 200;
 
     // Map Y position to pitch (higher = higher pitch)
     const pitchIndex = Math.floor((1 - tap.y) * this.scaleRatios.length);
     const pitchRatio = this.scaleRatios[Math.min(pitchIndex, this.scaleRatios.length - 1)];
-    const baseFreq = isQuickTap ? this.baseFrequencies.quick : this.baseFrequencies.hold;
-    const frequency = baseFreq * pitchRatio;
+    const frequency = this.baseFrequency * pitchRatio;
 
-    console.log(`🎹 ${isQuickTap ? 'Quick tap' : 'Hold'} at ${frequency.toFixed(1)}Hz`);
+    console.log(`🎹 Tap at ${frequency.toFixed(1)}Hz`);
 
-    if (isQuickTap) {
-      this.playQuickTap(frequency, tap.x, now);
-    } else {
-      this.playHoldTone(frequency, tap.x, tap.duration, now);
-    }
+    this.playTapTone(frequency, tap.x, now);
   }
 
   /**
-   * Quick tap = bright, bell-like tone
+   * Play tap tone - bright, bell-like sound
    */
-  private playQuickTap(frequency: number, xPosition: number, startTime: number): void {
+  private playTapTone(frequency: number, xPosition: number, startTime: number): void {
     if (!this.context || !this.reverbNode) return;
 
     // Create oscillator for fundamental
@@ -166,79 +155,6 @@ export class AudioManager {
       this.activeOscillators.delete(osc2);
       this.activeOscillators.delete(osc3);
     }, 1000);
-  }
-
-  /**
-   * Hold = deep, resonant drone with evolving harmonics
-   */
-  private playHoldTone(frequency: number, xPosition: number, duration: number, startTime: number): void {
-    if (!this.context || !this.reverbNode) return;
-
-    const sustainTime = Math.min(duration / 1000, 2.0); // Max 2 seconds
-
-    // Fundamental oscillator
-    const osc = this.context.createOscillator();
-    osc.type = 'triangle'; // Warmer than sine
-    osc.frequency.setValueAtTime(frequency, startTime);
-
-    // Add harmonic richness
-    const osc2 = this.context.createOscillator();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(frequency * 1.5, startTime); // Perfect fifth
-
-    const osc3 = this.context.createOscillator();
-    osc3.type = 'sine';
-    osc3.frequency.setValueAtTime(frequency * 2, startTime); // Octave
-
-    // Slow attack, sustained, slow release
-    const envelope = this.context.createGain();
-    envelope.gain.setValueAtTime(0, startTime);
-    envelope.gain.linearRampToValueAtTime(0.2, startTime + 0.3); // Slow swell
-    envelope.gain.setValueAtTime(0.2, startTime + 0.3 + sustainTime); // Hold
-    envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3 + sustainTime + 1.0); // Fade out
-
-    // Add subtle vibrato
-    const vibrato = this.context.createOscillator();
-    vibrato.frequency.setValueAtTime(4, startTime); // 4 Hz vibrato
-    const vibratoGain = this.context.createGain();
-    vibratoGain.gain.setValueAtTime(3, startTime); // ±3 Hz variation
-    vibrato.connect(vibratoGain);
-    vibratoGain.connect(osc.frequency);
-
-    // Stereo panning
-    const panner = this.context.createStereoPanner();
-    panner.pan.setValueAtTime((xPosition * 2) - 1, startTime);
-
-    // Connect chain
-    osc.connect(envelope);
-    osc2.connect(envelope);
-    osc3.connect(envelope);
-    envelope.connect(panner);
-    panner.connect(this.reverbNode);
-
-    // Start oscillators
-    vibrato.start(startTime);
-    osc.start(startTime);
-    osc2.start(startTime);
-    osc3.start(startTime);
-
-    // Stop oscillators
-    const stopTime = startTime + 0.3 + sustainTime + 1.0;
-    vibrato.stop(stopTime);
-    osc.stop(stopTime);
-    osc2.stop(stopTime);
-    osc3.stop(stopTime);
-
-    // Track for cleanup
-    this.activeOscillators.add(osc);
-    this.activeOscillators.add(osc2);
-    this.activeOscillators.add(osc3);
-
-    setTimeout(() => {
-      this.activeOscillators.delete(osc);
-      this.activeOscillators.delete(osc2);
-      this.activeOscillators.delete(osc3);
-    }, (stopTime - startTime) * 1000 + 100);
   }
 
   /**

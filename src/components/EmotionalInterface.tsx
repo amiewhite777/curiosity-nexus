@@ -7,7 +7,6 @@ import { getAudioManager } from '@/audio/audioManager';
 interface TapData {
   x: number;
   y: number;
-  duration: number;
   timestamp: number;
   intervalSincePrevious?: number; // Time since last tap (reveals rhythm)
   emotionalState?: string; // Which emotional state was active (if any)
@@ -16,7 +15,7 @@ interface TapData {
 }
 
 interface Props {
-  onTap: (x: number, y: number, duration: number) => void;
+  onTap: (x: number, y: number) => void;
 }
 
 const EMOTIONAL_STATES = [
@@ -91,7 +90,6 @@ export default function EmotionalInterface({ onTap }: Props) {
   const [finalArchetype, setFinalArchetype] = useState<Archetype | null>(null);
   const [showArchetypeReveal, setShowArchetypeReveal] = useState(false);
 
-  const tapStartTimeRef = useRef<number>(0);
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const collectionStartTimestampRef = useRef<number>(0);
@@ -190,18 +188,11 @@ export default function EmotionalInterface({ onTap }: Props) {
     }, 1000);
   };
 
-  // Handle tap down
-  const handleTapStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!collectingTaps && !collectingEmotionalTaps) return;
-    tapStartTimeRef.current = Date.now();
-  };
-
-  // Handle tap release
-  const handleTapEnd = (e: React.MouseEvent | React.TouchEvent) => {
+  // Handle tap (simplified - no duration tracking)
+  const handleTap = (e: React.MouseEvent | React.TouchEvent) => {
     if (!collectingTaps && !collectingEmotionalTaps) return;
 
     const now = Date.now();
-    const duration = now - tapStartTimeRef.current;
     let x: number, y: number;
 
     if ('touches' in e) {
@@ -221,7 +212,6 @@ export default function EmotionalInterface({ onTap }: Props) {
     const newTap: TapData = {
       x,
       y,
-      duration,
       timestamp: now,
       intervalSincePrevious,
     };
@@ -256,7 +246,7 @@ export default function EmotionalInterface({ onTap }: Props) {
     lastTapTimestampRef.current = now;
 
     // Call parent's onTap for visual feedback
-    onTap(x, y, duration);
+    onTap(x, y);
   };
 
   // Advance to next question or finish
@@ -548,10 +538,8 @@ export default function EmotionalInterface({ onTap }: Props) {
         {/* Fullscreen interaction layer (invisible but captures taps) */}
         <div
           style={styles.fullScreenTapLayer}
-          onMouseDown={handleTapStart}
-          onMouseUp={handleTapEnd}
-          onTouchStart={handleTapStart}
-          onTouchEnd={handleTapEnd}
+          onClick={handleTap}
+          onTouchEnd={handleTap}
         />
 
         {/* Minimal top banner */}
@@ -591,10 +579,8 @@ export default function EmotionalInterface({ onTap }: Props) {
   return (
     <div
       style={styles.fullScreenInteraction}
-      onMouseDown={handleTapStart}
-      onMouseUp={handleTapEnd}
-      onTouchStart={handleTapStart}
-      onTouchEnd={handleTapEnd}
+      onClick={handleTap}
+      onTouchEnd={handleTap}
     >
       {/* Flash question (visible for 3.5 seconds) */}
       {showQuestion && (

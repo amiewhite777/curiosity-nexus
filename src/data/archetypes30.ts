@@ -442,48 +442,64 @@ export const archetypes30: Archetype[] = [
 
 /**
  * Analyze complete tap data and determine archetype
+ * Uses deep qualia signals: spatial patterns, reaction latency, emotional taps, intervals
  */
 export function analyzeArchetype(tapData: Array<{
   x: number;
   y: number;
-  duration: number;
   timestamp: number;
+  intervalSincePrevious?: number;
+  emotionalState?: string;
+  questionIndex?: number;
+  reactionLatency?: number;
 }>): Archetype {
-  // Analyze original 4 patterns
+  // Analyze spatial patterns
   const spatialPattern = analyzeSpatialPattern(tapData);
+
+  // Analyze temporal patterns from intervals
   const temporalPattern = analyzeTemporalPattern(tapData);
-  const energyPattern = analyzeEnergyPattern(tapData);
+
+  // Analyze rhythm/energy from intervals (not duration!)
+  const energyPattern = analyzeEnergyFromIntervals(tapData);
+
+  // Analyze consistency over time
   const consistencyPattern = analyzeConsistencyPattern(tapData);
 
-  // Analyze 10 NEW sophisticated metrics
-  const metrics = analyzeAdvancedMetrics(tapData);
+  // NEW: Analyze qualia-specific metrics
+  const qualiaMetrics = analyzeQualiaMetrics(tapData);
 
-  console.log('📊 Advanced Tap Analysis:', {
+  console.log('📊 Deep Qualia Analysis:', {
     spatialPattern,
     temporalPattern,
     energyPattern,
     consistencyPattern,
-    ...metrics
+    ...qualiaMetrics
   });
 
-  // Score each archetype
+  // Score each archetype based on ALL available data
   const scores = archetypes30.map(archetype => {
     let score = 0;
 
-    // Original patterns
-    if (archetype.spatialPattern === spatialPattern) score += 3;
-    if (archetype.temporalPattern === temporalPattern) score += 3;
-    if (archetype.energyPattern === energyPattern) score += 2;
-    if (archetype.consistencyPattern === consistencyPattern) score += 2;
+    // Core pattern matching (30 points possible)
+    if (archetype.spatialPattern === spatialPattern) score += 8;
+    if (archetype.temporalPattern === temporalPattern) score += 8;
+    if (archetype.energyPattern === energyPattern) score += 7;
+    if (archetype.consistencyPattern === consistencyPattern) score += 7;
 
-    // Bonus scoring based on advanced metrics
-    score += calculateAdvancedScore(archetype, metrics);
+    // Qualia-based scoring (20 points possible)
+    score += calculateQualiaScore(archetype, qualiaMetrics);
 
     return { archetype, score };
   });
 
   // Return highest scoring
   scores.sort((a, b) => b.score - a.score);
+
+  console.log('🎯 Top 5 Archetypes:', scores.slice(0, 5).map(s => ({
+    name: s.archetype.name,
+    score: s.score
+  })));
+
   return scores[0].archetype;
 }
 
@@ -534,234 +550,195 @@ function analyzeTemporalPattern(tapData: Array<{ timestamp: number }>): Archetyp
   return 'slow';
 }
 
-function analyzeEnergyPattern(tapData: Array<{ duration: number }>): Archetype['energyPattern'] {
-  const avgDuration = tapData.reduce((sum, tap) => sum + tap.duration, 0) / tapData.length;
-  const variance = tapData.reduce((sum, tap) => sum + Math.pow(tap.duration - avgDuration, 2), 0) / tapData.length;
-  const coefficientOfVariation = Math.sqrt(variance) / avgDuration;
+function analyzeEnergyFromIntervals(tapData: Array<{ intervalSincePrevious?: number }>): Archetype['energyPattern'] {
+  const intervals = tapData.filter(t => t.intervalSincePrevious !== undefined).map(t => t.intervalSincePrevious!);
+  if (intervals.length === 0) return 'gentle';
 
-  if (coefficientOfVariation > 0.6) return 'varying';
-  if (avgDuration > 300) return 'sustained';
-  if (avgDuration < 100) return 'gentle';
+  const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  const variance = intervals.reduce((sum, interval) => sum + Math.pow(interval - avgInterval, 2), 0) / intervals.length;
+  const coefficientOfVariation = Math.sqrt(variance) / avgInterval;
 
-  const hasBursts = tapData.some(tap => tap.duration > avgDuration * 2);
+  // Varying = highly irregular rhythm
+  if (coefficientOfVariation > 0.7) return 'varying';
+
+  // Gentle = slow, steady tapping
+  if (avgInterval > 800) return 'gentle';
+
+  // Bursting = some very fast taps
+  const hasBursts = intervals.some(interval => interval < avgInterval * 0.3);
   if (hasBursts) return 'bursting';
 
-  return 'forceful';
+  // Sustained = consistent medium rhythm
+  if (coefficientOfVariation < 0.3) return 'sustained';
+
+  // Forceful = fast consistent tapping
+  if (avgInterval < 400) return 'forceful';
+
+  return 'sustained';
 }
 
-function analyzeConsistencyPattern(tapData: Array<{ x: number; y: number; duration: number }>): Archetype['consistencyPattern'] {
-  const third = Math.floor(tapData.length / 3);
+function analyzeConsistencyPattern(tapData: Array<{ intervalSincePrevious?: number }>): Archetype['consistencyPattern'] {
+  const intervals = tapData.filter(t => t.intervalSincePrevious !== undefined).map(t => t.intervalSincePrevious!);
+  if (intervals.length < 3) return 'consistent';
 
-  const first = tapData.slice(0, third);
-  const second = tapData.slice(third, third * 2);
-  const third_data = tapData.slice(third * 2);
+  const third = Math.floor(intervals.length / 3);
+  const first = intervals.slice(0, third);
+  const third_data = intervals.slice(third * 2);
 
-  const avgDurationFirst = first.reduce((sum, tap) => sum + tap.duration, 0) / first.length;
-  const avgDurationThird = third_data.reduce((sum, tap) => sum + tap.duration, 0) / third_data.length;
+  const avgFirst = first.reduce((sum, i) => sum + i, 0) / first.length;
+  const avgThird = third_data.reduce((sum, i) => sum + i, 0) / third_data.length;
 
-  const change = Math.abs(avgDurationFirst - avgDurationThird) / avgDurationFirst;
+  const change = Math.abs(avgFirst - avgThird) / avgFirst;
 
+  // Evolving = significant change in rhythm over time
   if (change > 0.5) return 'evolving';
+
+  // Consistent = stable rhythm throughout
   if (change < 0.2) return 'consistent';
+
   return 'varied';
 }
 
 /**
- * Analyze 10 additional sophisticated metrics for deeper understanding
+ * Analyze qualia-specific metrics from deep consciousness signals
  */
-function analyzeAdvancedMetrics(tapData: Array<{
+function analyzeQualiaMetrics(tapData: Array<{
   x: number;
   y: number;
-  duration: number;
   timestamp: number;
+  intervalSincePrevious?: number;
+  emotionalState?: string;
+  questionIndex?: number;
+  reactionLatency?: number;
 }>) {
-  // 1. PRESSURE INTENSITY (simulated from duration variance)
-  const durations = tapData.map(t => t.duration);
-  const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
-  const pressureIntensity = Math.sqrt(
-    durations.reduce((sum, d) => sum + Math.pow(d - avgDuration, 2), 0) / durations.length
-  ) / avgDuration;
+  // 1. REACTION SPEED - Average latency to first tap
+  const latencies = tapData.filter(t => t.reactionLatency !== undefined).map(t => t.reactionLatency!);
+  const avgReactionLatency = latencies.length > 0
+    ? latencies.reduce((a, b) => a + b, 0) / latencies.length
+    : 1000;
+  const reactionSpeed = avgReactionLatency < 500 ? 'fast' : avgReactionLatency < 1500 ? 'medium' : 'slow';
 
-  // 2. DIRECTIONAL FLOW (movement direction analysis)
-  const movements = [];
-  for (let i = 1; i < tapData.length; i++) {
-    const dx = tapData[i].x - tapData[i-1].x;
-    const dy = tapData[i].y - tapData[i-1].y;
-    const angle = Math.atan2(dy, dx);
-    movements.push(angle);
+  // 2. EMOTIONAL RESPONSIVENESS - Which emotional states triggered taps
+  const emotionalTaps = tapData.filter(t => t.emotionalState !== undefined);
+  const emotionalStateCount = new Set(emotionalTaps.map(t => t.emotionalState)).size;
+  const emotionalResponsiveness = emotionalTaps.length / Math.max(tapData.length, 1);
+
+  // 3. RHYTHM CONSISTENCY - Variance in inter-tap intervals
+  const intervals = tapData.filter(t => t.intervalSincePrevious !== undefined).map(t => t.intervalSincePrevious!);
+  let rhythmConsistency = 0;
+  if (intervals.length > 1) {
+    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const variance = intervals.reduce((sum, i) => sum + Math.pow(i - avgInterval, 2), 0) / intervals.length;
+    rhythmConsistency = 1 / (1 + Math.sqrt(variance) / avgInterval); // 0-1, higher = more consistent
   }
-  const directionalConsistency = movements.length > 0
-    ? 1 - (new Set(movements.map(a => Math.round(a * 4))).size / movements.length)
-    : 0;
 
-  // 3. CLUSTER DENSITY (how tightly grouped are taps)
-  const distances = [];
-  for (let i = 0; i < tapData.length - 1; i++) {
-    for (let j = i + 1; j < tapData.length; j++) {
-      const dist = Math.sqrt(
-        Math.pow(tapData[i].x - tapData[j].x, 2) +
-        Math.pow(tapData[i].y - tapData[j].y, 2)
-      );
-      distances.push(dist);
-    }
-  }
-  const clusterDensity = distances.length > 0
-    ? 1 / (distances.reduce((a, b) => a + b, 0) / distances.length + 1)
-    : 0;
+  // 4. TAP INTENSITY - Total number of taps (engagement level)
+  const tapIntensity = tapData.length;
 
-  // 4. SYMMETRY SCORE (left/right, top/bottom balance)
-  const centerX = typeof window !== 'undefined' ? window.innerWidth / 2 : 500;
-  const centerY = typeof window !== 'undefined' ? window.innerHeight / 2 : 500;
-  const leftTaps = tapData.filter(t => t.x < centerX).length;
-  const rightTaps = tapData.filter(t => t.x >= centerX).length;
-  const topTaps = tapData.filter(t => t.y < centerY).length;
-  const bottomTaps = tapData.filter(t => t.y >= centerY).length;
-  const horizontalSymmetry = 1 - Math.abs(leftTaps - rightTaps) / tapData.length;
-  const verticalSymmetry = 1 - Math.abs(topTaps - bottomTaps) / tapData.length;
-  const symmetryScore = (horizontalSymmetry + verticalSymmetry) / 2;
-
-  // 5. ACCELERATION CURVE (how tapping speed changes)
-  const intervals = [];
-  for (let i = 1; i < tapData.length; i++) {
-    intervals.push(tapData[i].timestamp - tapData[i-1].timestamp);
-  }
-  const accelerations = [];
-  for (let i = 1; i < intervals.length; i++) {
-    accelerations.push(intervals[i] - intervals[i-1]);
-  }
-  const avgAcceleration = accelerations.length > 0
-    ? accelerations.reduce((a, b) => a + b, 0) / accelerations.length
-    : 0;
-
-  // 6. RHYTHM COMPLEXITY (entropy of timing patterns)
-  const intervalBuckets = intervals.map(i => Math.floor(i / 100));
-  const uniqueBuckets = new Set(intervalBuckets);
-  const rhythmComplexity = uniqueBuckets.size / (intervals.length || 1);
-
-  // 7. ENERGY DISTRIBUTION (variance of energy across screen regions)
-  const quadrants = [0, 0, 0, 0]; // TL, TR, BL, BR
-  tapData.forEach(tap => {
-    const isLeft = tap.x < centerX;
-    const isTop = tap.y < centerY;
-    if (isTop && isLeft) quadrants[0] += tap.duration;
-    if (isTop && !isLeft) quadrants[1] += tap.duration;
-    if (!isTop && isLeft) quadrants[2] += tap.duration;
-    if (!isTop && !isLeft) quadrants[3] += tap.duration;
-  });
-  const energyVariance = Math.sqrt(
-    quadrants.reduce((sum, q) => sum + Math.pow(q - avgDuration * tapData.length / 4, 2), 0) / 4
-  );
-  const energyDistribution = energyVariance / (avgDuration * tapData.length + 1);
-
-  // 8. TOUCH POINT DIVERSITY (how many unique areas touched)
-  const gridSize = 50;
+  // 5. SPATIAL EXPLORATION - How much of the screen was explored
+  const gridSize = 0.2; // 20% of screen
   const gridCells = new Set(
     tapData.map(tap =>
       `${Math.floor(tap.x / gridSize)},${Math.floor(tap.y / gridSize)}`
     )
   );
-  const touchDiversity = gridCells.size / (tapData.length || 1);
+  const spatialExploration = gridCells.size / Math.max(tapData.length, 1);
 
-  // 9. PATTERN REPETITION (detecting repeated sequences)
-  let repetitions = 0;
-  for (let i = 0; i < tapData.length - 3; i++) {
-    for (let j = i + 3; j < tapData.length - 3; j++) {
-      const dist1 = Math.sqrt(
-        Math.pow(tapData[i].x - tapData[j].x, 2) +
-        Math.pow(tapData[i].y - tapData[j].y, 2)
-      );
-      const dist2 = Math.sqrt(
-        Math.pow(tapData[i+1].x - tapData[j+1].x, 2) +
-        Math.pow(tapData[i+1].y - tapData[j+1].y, 2)
-      );
-      if (dist1 < 100 && dist2 < 100) repetitions++;
+  // 6. QUESTION VARIATION - Did tap behavior change across questions?
+  const questionTapCounts = [0, 0, 0, 0, 0];
+  tapData.forEach(tap => {
+    if (tap.questionIndex !== undefined && tap.questionIndex >= 0 && tap.questionIndex < 5) {
+      questionTapCounts[tap.questionIndex]++;
     }
-  }
-  const patternRepetition = Math.min(repetitions / (tapData.length || 1), 1);
-
-  // 10. EMOTIONAL INTENSITY (combination of speed, pressure, and movement)
-  const avgInterval = intervals.length > 0
-    ? intervals.reduce((a, b) => a + b, 0) / intervals.length
-    : 1000;
-  const avgMovement = movements.length > 0
-    ? distances.slice(0, movements.length).reduce((a, b) => a + b, 0) / movements.length
-    : 0;
-  const emotionalIntensity = (
-    (1000 / avgInterval) * 0.4 +       // Speed component
-    (avgDuration / 500) * 0.3 +         // Pressure component
-    (avgMovement / 200) * 0.3           // Movement component
-  );
+  });
+  const avgQuestionTaps = questionTapCounts.reduce((a, b) => a + b, 0) / 5;
+  const questionVariance = questionTapCounts.reduce((sum, count) =>
+    sum + Math.pow(count - avgQuestionTaps, 2), 0) / 5;
+  const questionVariation = Math.sqrt(questionVariance) / (avgQuestionTaps + 1);
 
   return {
-    pressureIntensity,
-    directionalConsistency,
-    clusterDensity,
-    symmetryScore,
-    avgAcceleration,
-    rhythmComplexity,
-    energyDistribution,
-    touchDiversity,
-    patternRepetition,
-    emotionalIntensity
+    avgReactionLatency,
+    reactionSpeed,
+    emotionalResponsiveness,
+    emotionalStateCount,
+    rhythmConsistency,
+    tapIntensity,
+    spatialExploration,
+    questionVariation,
   };
 }
 
 /**
- * Calculate additional score based on advanced metrics
+ * Calculate qualia-based archetype scoring
  */
-function calculateAdvancedScore(archetype: Archetype, metrics: ReturnType<typeof analyzeAdvancedMetrics>): number {
-  let bonus = 0;
+function calculateQualiaScore(
+  archetype: Archetype,
+  metrics: ReturnType<typeof analyzeQualiaMetrics>
+): number {
+  let score = 0;
 
-  // Fire archetypes: high intensity, high complexity
-  if (archetype.id.startsWith('fire-')) {
-    if (metrics.emotionalIntensity > 0.7) bonus += 1;
-    if (metrics.rhythmComplexity > 0.5) bonus += 0.5;
+  // FIRE ARCHETYPES (inferno, ember, spark): Fast reactions, high intensity, bursting
+  if (['inferno', 'ember', 'spark'].includes(archetype.id)) {
+    if (metrics.reactionSpeed === 'fast') score += 3;
+    if (metrics.tapIntensity > 30) score += 2;
+    if (metrics.rhythmConsistency < 0.4) score += 2; // Chaotic
   }
 
-  // Water archetypes: flow, consistency
-  if (archetype.id.startsWith('water-')) {
-    if (metrics.directionalConsistency > 0.6) bonus += 1;
-    if (metrics.rhythmComplexity < 0.4) bonus += 0.5;
+  // WATER ARCHETYPES (ocean, river, storm): Flowing, adaptive, evolving
+  if (['ocean', 'river', 'storm'].includes(archetype.id)) {
+    if (metrics.rhythmConsistency > 0.6) score += 3;
+    if (metrics.questionVariation > 0.5) score += 2; // Adaptive
+    if (metrics.spatialExploration > 0.5) score += 2;
   }
 
-  // Earth archetypes: stability, symmetry, clustering
-  if (archetype.id.startsWith('earth-')) {
-    if (metrics.symmetryScore > 0.6) bonus += 1;
-    if (metrics.clusterDensity > 0.5) bonus += 0.5;
+  // EARTH ARCHETYPES (mountain, forest, seed): Stable, consistent, grounded
+  if (['mountain', 'forest', 'seed'].includes(archetype.id)) {
+    if (metrics.rhythmConsistency > 0.7) score += 3;
+    if (metrics.reactionSpeed === 'slow') score += 2;
+    if (metrics.spatialExploration < 0.4) score += 2; // Centered
   }
 
-  // Air archetypes: diversity, lightness
-  if (archetype.id.startsWith('air-')) {
-    if (metrics.touchDiversity > 0.6) bonus += 1;
-    if (metrics.pressureIntensity < 0.4) bonus += 0.5;
+  // AIR ARCHETYPES (wind, breath, tornado): Fast, varied, exploring
+  if (['wind', 'breath', 'tornado'].includes(archetype.id)) {
+    if (metrics.spatialExploration > 0.6) score += 3;
+    if (metrics.reactionSpeed === 'fast') score += 2;
+    if (metrics.questionVariation > 0.6) score += 2;
   }
 
-  // Light archetypes: distributed energy, high movement
-  if (archetype.id.startsWith('light-')) {
-    if (metrics.energyDistribution > 0.5) bonus += 1;
-    if (metrics.emotionalIntensity > 0.6) bonus += 0.5;
+  // LIGHT ARCHETYPES (sun, star, lightning): Bright, consistent, radiating
+  if (['sun', 'star', 'lightning'].includes(archetype.id)) {
+    if (metrics.tapIntensity > 25) score += 3;
+    if (metrics.emotionalResponsiveness > 0.3) score += 2;
+    if (metrics.reactionSpeed === 'fast') score += 2;
   }
 
-  // Shadow archetypes: repetition, focused intensity
-  if (archetype.id.startsWith('shadow-')) {
-    if (metrics.patternRepetition > 0.3) bonus += 1;
-    if (metrics.clusterDensity > 0.6) bonus += 0.5;
+  // SHADOW ARCHETYPES (void, shadow, mirror): Subtle, edge-seeking, deep
+  if (['void', 'shadow', 'mirror'].includes(archetype.id)) {
+    if (metrics.tapIntensity < 20) score += 3;
+    if (metrics.reactionSpeed === 'slow') score += 2;
+    if (metrics.spatialExploration > 0.5) score += 2;
   }
 
-  // Metal archetypes: precision, consistency
-  if (archetype.id.startsWith('metal-')) {
-    if (metrics.directionalConsistency > 0.7) bonus += 1;
-    if (metrics.symmetryScore > 0.7) bonus += 0.5;
+  // METAL ARCHETYPES (blade, shield, bell): Precise, consistent, focused
+  if (['blade', 'shield', 'bell'].includes(archetype.id)) {
+    if (metrics.rhythmConsistency > 0.7) score += 3;
+    if (metrics.questionVariation < 0.3) score += 2; // Consistent across questions
+    if (metrics.tapIntensity > 20 && metrics.tapIntensity < 35) score += 2;
   }
 
-  // Hybrid archetypes: balanced across metrics
-  if (archetype.id.startsWith('hybrid-')) {
-    const balance =
-      metrics.symmetryScore * 0.3 +
-      metrics.touchDiversity * 0.3 +
-      (1 - Math.abs(0.5 - metrics.rhythmComplexity)) * 0.4;
-    bonus += balance * 2;
+  // HYBRID ARCHETYPES (phoenix, lotus, maze, etc): Balanced, evolving, complex
+  if (['phoenix', 'lotus', 'maze', 'bridge', 'spiral', 'prism', 'tide', 'catalyst', 'weaver', 'horizon'].includes(archetype.id)) {
+    // Reward balance and complexity
+    if (metrics.emotionalResponsiveness > 0.2 && metrics.emotionalResponsiveness < 0.6) score += 2;
+    if (metrics.questionVariation > 0.4) score += 2;
+    if (metrics.spatialExploration > 0.4 && metrics.spatialExploration < 0.7) score += 2;
+
+    // Specific hybrids
+    if (archetype.id === 'phoenix' && metrics.questionVariation > 0.7) score += 2;
+    if (archetype.id === 'maze' && metrics.spatialExploration > 0.6) score += 2;
+    if (archetype.id === 'spiral' && metrics.rhythmConsistency > 0.5) score += 2;
   }
 
-  return bonus;
+  return score;
 }
+
