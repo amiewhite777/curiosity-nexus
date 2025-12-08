@@ -1,121 +1,48 @@
-# Curiosity Nexus
+# Curiosity Nexus 🌟
 
-A simulation engine exploring the dynamics of curiosity through chaos, entropy, and emergence. Built with Next.js 14, React Three Fiber, and advanced physics simulations.
+An interactive consciousness exploration that reveals your inner archetype through the subtle language of touch. Built with Next.js 14, React Three Fiber, and Web Audio API.
 
-## 🎯 Project Philosophy
+## 🎯 What Is This?
 
-This is not a standard website—it's a **simulation engine**. Curiosity Nexus models an AI system that experiences homeostasis, transitioning between states of chaos (Red) and order (Blue) through the forces of entropy, energy, and coherence.
+Curiosity Nexus is an emotional consciousness analyzer. Through a series of emotional prompts and timed questions, it analyzes **how you tap** (not what you answer) to reveal one of 30 unique personality archetypes.
 
-## 🏗️ Architecture
+It doesn't track your words—it tracks your **qualia**: the rhythm, speed, intensity, and spatial patterns of your touch.
 
-### Core Stack
-- **Next.js 14** (App Router)
-- **React Three Fiber** (3D rendering)
-- **Three.js** (WebGL engine)
-- **Drei** (R3F helpers)
-- **Zustand** (State management)
-- **Web Audio API** (Generative audio)
+## ✨ Features
 
-### Directory Structure
+### Deep Qualia Analysis
+- **Reaction Latency** - Fast/medium/slow responders
+- **Emotional Responsiveness** - Which emotional states trigger taps
+- **Rhythm Consistency** - Pattern regularity over time
+- **Tap Intensity** - Engagement and energy levels
+- **Spatial Exploration** - Screen coverage and movement patterns
+- **Question Variation** - Behavioral changes across questions
 
-```
-/src
-  /app                    Next.js App Router files
-    ├── layout.tsx       Root layout
-    ├── page.tsx         Main entry point
-    └── globals.css      Global styles
+### 30 Unique Archetypes
+From "The Wanderer" to "The Oracle", each archetype represents a distinct consciousness signature based on your tap behavior patterns.
 
-  /components            React components
-    ├── SimulationCanvas.tsx
-    └── Scene.tsx
+### Dynamic Audio System
+- **3 Sound Types**: Gentle whispers, bell tones, or sharp percussion based on tap speed
+- **Background Ambience**: Dreamy chord progression (Am-F-C-G)
+- **Spatial Audio**: Stereo panning and pitch based on tap position
+- **Intensity-Scaled**: Slow taps are faint, fast taps are pronounced
 
-  /core                  Physics & simulation logic
-    /physics
-      ├── lagrangian.ts  Lagrangian mechanics (L = T - V)
-      └── rk4.ts         Runge-Kutta 4th order integrator
-    /thermodynamics
-      └── entropy.ts     Entropy calculations, energy landscape
-    /topology
-      └── graph.ts       Nodal network, Hebbian wiring
+### Beautiful Visuals
+- Particle field with energy waves
+- Shooting stars across the cosmos
+- Fluid 3D orb that responds to touch
+- Smooth transitions and animations
 
-  /visuals               Rendering systems
-    /shaders
-      ├── qualia.frag    Fragment shader for "Qualia" atmosphere
-      └── qualia.vert    Vertex shader
-    /particles
-      └── dustOfInsight.ts  InstancedMesh particle system
-    /post-processing   (Post-processing effects)
-    /materials
-      └── reactiveMaterial.ts  Entropy-reactive materials
+### Built-In Analytics
+Track archetype distribution to see if results are balanced across all 30 archetypes or bottlenecking into just a few.
 
-  /audio                 Generative sound
-    /oscillators
-      └── pendulumHum.ts     Web Audio oscillators
-    /harmonics
-      └── chordOfTruth.ts    Resonance logic for coherence
+## 🏗️ Tech Stack
 
-  /agency                User interaction & AI homeostasis
-    /input
-      └── raycaster.ts       Raycasting for perturbation
-    /homeostasis
-      └── regulation.ts      PID controller for comfort regulation
-
-  /store                 Global state (Zustand)
-    └── simulationStore.ts   chaosLevel, energy, coherence, entropy
-
-  /utils                 Mathematical utilities
-    └── math.ts           Lyapunov exponents, strange attractors
-```
-
-## 🔬 Scientific Concepts
-
-### Lagrangian Dynamics
-The simulation uses Lagrangian mechanics where `L = T - V` (Kinetic Energy - Potential Energy) to model the system's evolution through state space.
-
-### RK4 Integration
-Runge-Kutta 4th order integration provides accurate numerical solutions for the differential equations governing the system's motion.
-
-### Entropy & Thermodynamics
-- **Boltzmann Entropy**: Measures disorder in the system
-- **Energy Landscape**: Defines potential wells and stability basins
-- **Temperature**: Governs thermal fluctuations and phase transitions
-
-### Chaos Theory
-- **Lyapunov Exponents**: Quantify sensitivity to initial conditions
-- **Strange Attractors**: Lorenz and Rössler attractors create chaotic trajectories
-- **Phase Space**: The system evolves through a high-dimensional phase space
-
-### Hebbian Learning
-"Neurons that fire together, wire together" - the nodal network strengthens connections based on co-activation, leading to emergent patterns.
-
-## 🎨 Visual Systems
-
-### Qualia Atmosphere
-The fragment shader creates an ethereal, shifting quality representing the "feeling" of the system's state.
-
-### Dust of Insight
-Particle systems using `InstancedMesh` for efficient rendering of thousands of particles following chaotic attractors.
-
-### Reactive Materials
-Materials that change color based on the system's comfort level:
-- **Red** → Chaos, high entropy
-- **Purple** → Transition state
-- **Blue** → Order, low entropy
-
-## 🔊 Audio Systems
-
-### Pendulum Hum
-Continuous oscillator that modulates frequency based on chaos level, creating a "humming" resonance.
-
-### Chord of Truth
-Harmonic chord using just intonation that plays when the system achieves high coherence—a moment of clarity.
-
-## 🤖 Homeostasis
-
-The AI has a "comfort zone" and actively regulates itself using a PID controller:
-- **Low chaos** (Blue) = Comfortable, ordered state
-- **High chaos** (Red) = Uncomfortable, disordered state
-- The system naturally seeks equilibrium through energy dissipation
+- **Next.js 14** - App Router, TypeScript
+- **React Three Fiber** - 3D rendering with Three.js
+- **Web Audio API** - Generative soundscapes
+- **Zustand** - State management
+- **LocalStorage** - Analytics tracking (privacy-focused)
 
 ## 🚀 Getting Started
 
@@ -137,39 +64,114 @@ npm run build
 npm start
 ```
 
-## 📦 Deployment
+## 📊 Analytics
 
-Optimized for **Vercel** deployment:
+Open the browser console and use:
+
+```javascript
+// View archetype distribution
+window.curiosityAnalytics.log()
+
+// Export all data as JSON
+window.curiosityAnalytics.export()
+
+// Clear tracked data
+window.curiosityAnalytics.clear()
+```
+
+See [ANALYTICS.md](./ANALYTICS.md) for full documentation.
+
+## 🎮 How It Works
+
+### Phase 1: Emotional States (8 states)
+Words like "joy", "fear", "curiosity" appear briefly. Tap when you feel moved to.
+
+### Phase 2: Timed Questions (5 questions)
+Questions flash for 3 seconds, then you have 5 seconds to tap as many times as you feel called to.
+
+### Phase 3: Analysis
+The system analyzes your tap patterns across 6 qualia dimensions and matches you to one of 30 archetypes.
+
+### Phase 4: Reveal
+Your archetype is revealed with a description of your consciousness signature.
+
+## 🎨 Key Files
+
+```
+/src
+  /components
+    ├── EmotionalInterface.tsx    # Main interaction flow
+    ├── Scene.tsx                  # 3D particle system
+    └── SimulationCanvas.tsx       # Three.js setup
+
+  /data
+    ├── archetypes30.ts           # 30 archetypes & analysis
+    ├── questions.ts              # Question prompts
+    └── emotionalStates.ts        # Emotional word list
+
+  /audio
+    └── audioManager.ts           # Web Audio synthesis
+
+  /utils
+    └── analytics.ts              # Distribution tracking
+
+  /store
+    └── simulationStore.ts        # Physics simulation state
+```
+
+## 🔊 Audio Details
+
+### Tap Sounds
+- **Gentle** (<0.3 intensity): Soft sine waves, quiet, long decay
+- **Medium** (0.3-0.6): Bell-like tones with harmonics
+- **Intense** (>0.6): Sharp percussion with rich overtones
+
+### Background Music
+Continuous Am-F-C-G chord progression using layered sine wave oscillators with subtle detuning for warmth.
+
+## 🧬 Archetype Analysis
+
+The algorithm analyzes:
+1. **Reaction speed** - First tap latency after each question
+2. **Emotional engagement** - Which emotional states triggered responses
+3. **Rhythm patterns** - Inter-tap interval variance
+4. **Intensity levels** - Average tap engagement
+5. **Spatial behavior** - Screen coverage and exploration
+6. **Adaptability** - Behavior changes across questions
+
+Each archetype has custom scoring weights across these dimensions.
+
+## 📱 Deployment
+
+Optimized for **Vercel**:
 ```bash
 vercel deploy
 ```
 
-## 🎮 Interaction
+Works on desktop and mobile. Audio requires user interaction to start (browser security requirement).
 
-- **Click/Touch**: Perturb the system with raycasted forces
-- **Orbit**: Drag to rotate the camera
-- **Zoom**: Scroll to zoom in/out
+## 🔮 Architecture Patterns
 
-Each interaction injects energy and chaos, forcing the system to adapt and seek homeostasis.
+### State Management
+- **Zustand** for simulation physics
+- **React useState** for UI flow
+- **localStorage** for analytics persistence
 
-## 🧪 State Variables
+### Audio Architecture
+- Singleton `AudioManager` class
+- Web Audio API oscillators
+- Stereo panning and reverb processing
+- Background music loop (Am-F-C-G)
 
-The simulation tracks:
-- `chaosLevel` (0-1): Current chaos/disorder
-- `energy`: Total system energy
-- `coherence` (0-1): Network synchronization
-- `entropy` (0-1): Thermodynamic disorder
-- `temperature`: Thermal energy
-- `comfortLevel` (0-1): AI's homeostatic state
-- `phaseState`: 'chaos' | 'transition' | 'order'
+### 3D Rendering
+- React Three Fiber for declarative 3D
+- Custom particle system with wave propagation
+- Shooting stars with Line geometry
+- Dynamic color shifting
 
-## 🔮 Future Expansion
+## 🎯 Design Philosophy
 
-- Multiple pendulums with coupling
-- Genetic algorithms for evolved behaviors
-- Machine learning for pattern recognition
-- VR/AR integration for immersive experience
-- Multi-user interaction with network sync
+**No right answers.** The system doesn't judge your responses—it observes how you express yourself through touch. Tap fast, slow, gently, forcefully, or not at all. Every pattern tells a story.
 
 ## 📝 License
 
@@ -177,4 +179,4 @@ MIT
 
 ---
 
-**Built with curiosity. Governed by entropy. Driven by emergence.**
+**An exploration of consciousness through touch. Each tap is a signature.**
