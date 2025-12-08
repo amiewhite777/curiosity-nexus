@@ -7,6 +7,7 @@ export interface TapSound {
   x: number;        // 0-1, affects panning
   y: number;        // 0-1, affects pitch
   timestamp: number;
+  intensity?: number; // 0-1, affects volume and sound type
 }
 
 export class AudioManager {
@@ -15,6 +16,8 @@ export class AudioManager {
   private reverbNode: ConvolverNode | null = null;
   private isInitialized = false;
   private activeOscillators: Set<OscillatorNode> = new Set();
+  private backgroundLoop: OscillatorNode[] | null = null;
+  private backgroundGain: GainNode | null = null;
 
   // Base frequency for taps
   private readonly baseFrequency = 330; // E4 - warm, pleasant
@@ -37,6 +40,9 @@ export class AudioManager {
       // Create reverb for spaciousness
       this.reverbNode = await this.createReverb();
       this.reverbNode.connect(this.masterGain);
+
+      // Start background ambient loop
+      this.startBackgroundMusic();
 
       this.isInitialized = true;
       console.log('✅ AudioManager initialized successfully');
@@ -67,6 +73,53 @@ export class AudioManager {
   }
 
   /**
+   * Start atmospheric background music loop
+   */
+  private startBackgroundMusic(): void {
+    if (!this.context || !this.masterGain) return;
+
+    // Create background gain for independent volume control
+    this.backgroundGain = this.context.createGain();
+    this.backgroundGain.gain.value = 0.08; // Very subtle background
+    this.backgroundGain.connect(this.masterGain);
+
+    // Create a dreamy ambient pad using multiple oscillators
+    // Using a minor chord progression: Am - F - C - G
+    const chords = [
+      [220, 264, 330],   // A minor (A3, C4, E4)
+      [174.61, 220, 261.63], // F major (F3, A3, C4)
+      [261.63, 329.63, 392], // C major (C4, E4, G4)
+      [196, 246.94, 293.66]  // G major (G3, B3, D4)
+    ];
+
+    this.backgroundLoop = [];
+
+    // Create oscillators for each note
+    chords.forEach((chord, chordIndex) => {
+      chord.forEach((freq, noteIndex) => {
+        const osc = this.context!.createOscillator();
+        osc.type = 'sine'; // Smooth, ethereal sound
+        osc.frequency.value = freq;
+
+        // Add slight detuning for warmth
+        osc.detune.value = (Math.random() - 0.5) * 8;
+
+        // Create individual gain for each note
+        const noteGain = this.context!.createGain();
+        noteGain.gain.value = 0.15 / chord.length; // Normalize by chord size
+
+        osc.connect(noteGain);
+        noteGain.connect(this.backgroundGain!);
+
+        osc.start();
+        this.backgroundLoop!.push(osc);
+      });
+    });
+
+    console.log('🎶 Background music started');
+  }
+
+  /**
    * Play a tap sound based on interaction properties
    */
   playTapSound(tap: TapSound): void {
@@ -79,10 +132,13 @@ export class AudioManager {
       return;
     }
 
+    const intensity = tap.intensity ?? 0.5; // Default to medium if not provided
+
     console.log('🎵 Playing tap sound:', {
       contextState: this.context.state,
       x: tap.x.toFixed(2),
-      y: tap.y.toFixed(2)
+      y: tap.y.toFixed(2),
+      intensity: intensity.toFixed(2)
     });
 
     const now = this.context.currentTime;
@@ -92,15 +148,59 @@ export class AudioManager {
     const pitchRatio = this.scaleRatios[Math.min(pitchIndex, this.scaleRatios.length - 1)];
     const frequency = this.baseFrequency * pitchRatio;
 
-    console.log(`🎹 Tap at ${frequency.toFixed(1)}Hz`);
+    console.log(`🎹 Tap at ${frequency.toFixed(1)}Hz, intensity: ${intensity.toFixed(2)}`);
 
-    this.playTapTone(frequency, tap.x, now);
+    // Choose sound type based on intensity
+    if (intensity < 0.3) {
+      // Slow/gentle taps - soft, whisper-like sounds
+      this.playGentleTone(frequency, tap.x, intensity, now);
+    } else if (intensity < 0.6) {
+      // Medium taps - bell-like (original sound)
+      this.playTapTone(frequency, tap.x, intensity, now);
+    } else {
+      // Fast/intense taps - bright, sharp percussion
+      this.playIntenseTone(frequency, tap.x, intensity, now);
+    }
   }
 
   /**
-   * Play tap tone - bright, bell-like sound
+   * Play gentle tone - soft, whisper-like sound for slow taps
    */
-  private playTapTone(frequency: number, xPosition: number, startTime: number): void {
+  private playGentleTone(frequency: number, xPosition: number, intensity: number, startTime: number): void {
+    if (!this.context || !this.reverbNode) return;
+
+    // Soft sine wave with subtle overtone
+    const osc = this.context.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, startTime);
+
+    // Envelope for very soft, gradual attack and decay
+    const envelope = this.context.createGain();
+    const volume = intensity * 0.15; // Very quiet
+    envelope.gain.setValueAtTime(0, startTime);
+    envelope.gain.linearRampToValueAtTime(volume, startTime + 0.08); // Slow attack
+    envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2); // Long decay
+
+    // Stereo panning
+    const panner = this.context.createStereoPanner();
+    panner.pan.setValueAtTime((xPosition * 2) - 1, startTime);
+
+    osc.connect(envelope);
+    envelope.connect(panner);
+    panner.connect(this.reverbNode);
+
+    osc.start(startTime);
+    const stopTime = startTime + 1.2;
+    osc.stop(stopTime);
+
+    this.activeOscillators.add(osc);
+    setTimeout(() => this.activeOscillators.delete(osc), 1300);
+  }
+
+  /**
+   * Play tap tone - bright, bell-like sound for medium taps
+   */
+  private playTapTone(frequency: number, xPosition: number, intensity: number, startTime: number): void {
     if (!this.context || !this.reverbNode) return;
 
     // Create oscillator for fundamental
@@ -117,10 +217,11 @@ export class AudioManager {
     osc3.type = 'sine';
     osc3.frequency.setValueAtTime(frequency * 3.8, startTime); // Another inharmonic
 
-    // Envelope for sharp attack, quick decay
+    // Envelope for sharp attack, quick decay - scaled by intensity
     const envelope = this.context.createGain();
+    const volume = intensity * 0.4; // Moderate volume
     envelope.gain.setValueAtTime(0, startTime);
-    envelope.gain.linearRampToValueAtTime(0.3, startTime + 0.005); // Sharp attack
+    envelope.gain.linearRampToValueAtTime(volume, startTime + 0.005); // Sharp attack
     envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 0.8); // Decay
 
     // Stereo panning based on X position
@@ -155,6 +256,66 @@ export class AudioManager {
       this.activeOscillators.delete(osc2);
       this.activeOscillators.delete(osc3);
     }, 1000);
+  }
+
+  /**
+   * Play intense tone - bright, sharp percussion for fast taps
+   */
+  private playIntenseTone(frequency: number, xPosition: number, intensity: number, startTime: number): void {
+    if (!this.context || !this.reverbNode) return;
+
+    // Sharp, percussive sound with more harmonics
+    const osc = this.context.createOscillator();
+    osc.type = 'triangle'; // Brighter timbre
+    osc.frequency.setValueAtTime(frequency, startTime);
+
+    // Add more inharmonic overtones for punch
+    const osc2 = this.context.createOscillator();
+    osc2.type = 'square'; // Even more harmonics
+    osc2.frequency.setValueAtTime(frequency * 1.5, startTime);
+
+    const osc3 = this.context.createOscillator();
+    osc3.type = 'sawtooth'; // Richest harmonic content
+    osc3.frequency.setValueAtTime(frequency * 0.5, startTime);
+
+    // Very sharp attack, fast decay
+    const envelope = this.context.createGain();
+    const volume = intensity * 0.6; // Loud!
+    envelope.gain.setValueAtTime(0, startTime);
+    envelope.gain.linearRampToValueAtTime(volume, startTime + 0.002); // Extremely sharp attack
+    envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3); // Quick decay
+
+    // Stereo panning
+    const panner = this.context.createStereoPanner();
+    panner.pan.setValueAtTime((xPosition * 2) - 1, startTime);
+
+    // Connect chain
+    osc.connect(envelope);
+    osc2.connect(envelope);
+    osc3.connect(envelope);
+    envelope.connect(panner);
+    panner.connect(this.reverbNode);
+
+    // Start and stop
+    osc.start(startTime);
+    osc2.start(startTime);
+    osc3.start(startTime);
+
+    const stopTime = startTime + 0.3;
+    osc.stop(stopTime);
+    osc2.stop(stopTime);
+    osc3.stop(stopTime);
+
+    // Track for cleanup
+    this.activeOscillators.add(osc);
+    this.activeOscillators.add(osc2);
+    this.activeOscillators.add(osc3);
+
+    setTimeout(() => {
+      this.activeOscillators.delete(osc);
+      this.activeOscillators.delete(osc2);
+      this.activeOscillators.delete(osc3);
+    }, 400);
   }
 
   /**
@@ -235,6 +396,18 @@ export class AudioManager {
       }
     });
     this.activeOscillators.clear();
+
+    // Stop background music
+    if (this.backgroundLoop) {
+      this.backgroundLoop.forEach(osc => {
+        try {
+          osc.stop();
+        } catch (e) {
+          // Already stopped
+        }
+      });
+      this.backgroundLoop = null;
+    }
   }
 
   /**

@@ -37,6 +37,7 @@ export default function Scene({ latestTap }: SceneProps) {
   const timeRef = useRef(0);
   const hueRef = useRef(0);
   const lastTapTimestampRef = useRef(0);
+  const previousTapTimeRef = useRef(0); // Track previous tap for intensity calculation
   const waveSourcesRef = useRef<WaveSource[]>([]);
   const audioManager = useRef(getAudioManager());
 
@@ -100,7 +101,29 @@ export default function Scene({ latestTap }: SceneProps) {
   useEffect(() => {
     if (!latestTap || latestTap.timestamp === lastTapTimestampRef.current) return;
 
+    // Calculate tap intensity based on speed
+    const timeSincePreviousTap = previousTapTimeRef.current > 0
+      ? latestTap.timestamp - previousTapTimeRef.current
+      : 1000; // Default to slow for first tap
+
+    // Map time between taps to intensity (0-1)
+    // Very fast (<200ms) = high intensity (1.0)
+    // Slow (>1000ms) = low intensity (0.1)
+    let intensity = 0.5; // Default medium
+    if (timeSincePreviousTap < 200) {
+      intensity = 1.0; // Very fast
+    } else if (timeSincePreviousTap < 400) {
+      intensity = 0.75; // Fast
+    } else if (timeSincePreviousTap < 600) {
+      intensity = 0.5; // Medium
+    } else if (timeSincePreviousTap < 1000) {
+      intensity = 0.3; // Slow
+    } else {
+      intensity = 0.15; // Very slow
+    }
+
     lastTapTimestampRef.current = latestTap.timestamp;
+    previousTapTimeRef.current = latestTap.timestamp;
 
     // Convert normalized screen coords (0-1) to world space
     const ndcX = (latestTap.x * 2) - 1;
@@ -136,12 +159,13 @@ export default function Scene({ latestTap }: SceneProps) {
         waveSourcesRef.current.shift();
       }
 
-      // Play tap sound
+      // Play tap sound with calculated intensity
       audioManager.current.resume(); // Resume context if suspended
       audioManager.current.playTapSound({
         x: latestTap.x,
         y: latestTap.y,
         timestamp: latestTap.timestamp,
+        intensity: intensity,
       });
 
       // Particle behavior - attract + burst
