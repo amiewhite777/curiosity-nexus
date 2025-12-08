@@ -34,7 +34,7 @@ export class AudioManager {
 
       // Master gain for overall volume control
       this.masterGain = this.context.createGain();
-      this.masterGain.gain.value = 0.09; // Very subtle (reduced by 70%)
+      this.masterGain.gain.value = 0.126; // Subtle but audible
       this.masterGain.connect(this.context.destination);
 
       // Create reverb for spaciousness
@@ -80,7 +80,7 @@ export class AudioManager {
 
     // Create background gain for independent volume control
     this.backgroundGain = this.context.createGain();
-    this.backgroundGain.gain.value = 0.024; // Extremely subtle background (reduced by 70%)
+    this.backgroundGain.gain.value = 0.034; // Subtle background ambience
     this.backgroundGain.connect(this.masterGain);
 
     // Create a dreamy ambient pad using multiple oscillators
@@ -176,7 +176,7 @@ export class AudioManager {
 
     // Envelope for very soft, gradual attack and decay
     const envelope = this.context.createGain();
-    const volume = intensity * 0.045; // Extremely quiet (reduced by 70%)
+    const volume = intensity * 0.063; // Very quiet
     envelope.gain.setValueAtTime(0, startTime);
     envelope.gain.linearRampToValueAtTime(volume, startTime + 0.08); // Slow attack
     envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2); // Long decay
@@ -219,7 +219,7 @@ export class AudioManager {
 
     // Envelope for sharp attack, quick decay - scaled by intensity
     const envelope = this.context.createGain();
-    const volume = intensity * 0.12; // Gentle volume (reduced by 70%)
+    const volume = intensity * 0.168; // Moderate volume
     envelope.gain.setValueAtTime(0, startTime);
     envelope.gain.linearRampToValueAtTime(volume, startTime + 0.005); // Sharp attack
     envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 0.8); // Decay
@@ -280,7 +280,7 @@ export class AudioManager {
 
     // Very sharp attack, fast decay
     const envelope = this.context.createGain();
-    const volume = intensity * 0.18; // Moderate (reduced by 70%)
+    const volume = intensity * 0.252; // Punchy but not harsh
     envelope.gain.setValueAtTime(0, startTime);
     envelope.gain.linearRampToValueAtTime(volume, startTime + 0.002); // Extremely sharp attack
     envelope.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3); // Quick decay
