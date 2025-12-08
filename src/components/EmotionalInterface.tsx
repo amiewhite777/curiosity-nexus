@@ -273,6 +273,73 @@ export default function EmotionalInterface({ onTap }: Props) {
     }
   };
 
+  // Analyze spatial patterns in tap distribution
+  const analyzeSpatialPatterns = (taps: TapData[]) => {
+    if (taps.length < 2) return null;
+
+    // Calculate center of mass
+    const centerX = taps.reduce((sum, t) => sum + t.x, 0) / taps.length;
+    const centerY = taps.reduce((sum, t) => sum + t.y, 0) / taps.length;
+
+    // Calculate spatial variance (spread)
+    const variance = taps.reduce((sum, t) => {
+      const dx = t.x - centerX;
+      const dy = t.y - centerY;
+      return sum + (dx * dx + dy * dy);
+    }, 0) / taps.length;
+    const spatialEntropy = Math.sqrt(variance);
+
+    // Calculate cluster density (average distance to nearest neighbor)
+    let totalNearestDistance = 0;
+    taps.forEach((tap, i) => {
+      let minDist = Infinity;
+      taps.forEach((other, j) => {
+        if (i !== j) {
+          const dx = tap.x - other.x;
+          const dy = tap.y - other.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < minDist) minDist = dist;
+        }
+      });
+      totalNearestDistance += minDist;
+    });
+    const clusterDensity = 1 - (totalNearestDistance / taps.length); // Higher = more clustered
+
+    // Calculate edge vs center preference
+    const edgeTaps = taps.filter(t => {
+      const distFromCenterX = Math.abs(t.x - 0.5);
+      const distFromCenterY = Math.abs(t.y - 0.5);
+      return distFromCenterX > 0.3 || distFromCenterY > 0.3; // Outer 40%
+    }).length;
+    const edgeRatio = edgeTaps / taps.length;
+
+    // Calculate grid-like behavior (check for patterns in coordinates)
+    const xCoords = taps.map(t => Math.round(t.x * 10) / 10); // Round to nearest 0.1
+    const yCoords = taps.map(t => Math.round(t.y * 10) / 10);
+    const uniqueX = new Set(xCoords).size;
+    const uniqueY = new Set(yCoords).size;
+    const gridScore = 1 - (uniqueX * uniqueY) / (taps.length * taps.length); // Higher = more grid-like
+
+    // Determine pattern type
+    let pattern = 'organic';
+    if (gridScore > 0.5) pattern = 'systematic-grid';
+    else if (clusterDensity > 0.7) pattern = 'comfort-seeking';
+    else if (spatialEntropy > 0.3) pattern = 'exploratory';
+    else if (edgeRatio > 0.6) pattern = 'boundary-testing';
+
+    return {
+      spatialEntropy: Number(spatialEntropy.toFixed(3)),
+      clusterDensity: Number(clusterDensity.toFixed(3)),
+      edgeRatio: Number(edgeRatio.toFixed(3)),
+      gridScore: Number(gridScore.toFixed(3)),
+      pattern,
+      centerOfMass: {
+        x: Number(centerX.toFixed(3)),
+        y: Number(centerY.toFixed(3))
+      }
+    };
+  };
+
   // Analyze all tap data
   const analyzeAllData = (allTaps: TapData[][]) => {
     setCollectingTaps(false);
@@ -281,6 +348,9 @@ export default function EmotionalInterface({ onTap }: Props) {
     const emotionalTaps = emotionalStateTaps.flat();
     const questionTaps = allTaps.flat();
     const allCombinedTaps = [...emotionalTaps, ...questionTaps];
+
+    // Analyze spatial patterns
+    const spatialPatterns = analyzeSpatialPatterns(allCombinedTaps);
 
     console.log('📊 Analysis Data:', {
       emotionalStateTaps: emotionalTaps.length,
@@ -291,6 +361,8 @@ export default function EmotionalInterface({ onTap }: Props) {
         ? (reactionLatencies.reduce((a, b) => a + b, 0) / reactionLatencies.length).toFixed(0) + 'ms'
         : 'N/A'
     });
+
+    console.log('🎯 Spatial Patterns:', spatialPatterns);
 
     // Run analysis on combined dataset
     const archetype = analyzeArchetype(allCombinedTaps);
