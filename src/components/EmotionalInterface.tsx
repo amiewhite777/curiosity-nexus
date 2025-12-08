@@ -15,6 +15,17 @@ interface Props {
   onTap: (x: number, y: number, duration: number) => void;
 }
 
+const EMOTIONAL_STATES = [
+  "Joy",
+  "Curiosity",
+  "Peace",
+  "Excitement",
+  "Gratitude",
+  "Wonder",
+  "Courage",
+  "Love",
+];
+
 const QUESTIONS = [
   "What brings you the most joy in this moment?",
   "What are you most grateful for today?",
@@ -37,16 +48,16 @@ const INTRO_SLIDES = [
     text: "When it disappears, tap anywhere on the screen.",
   },
   {
+    title: "First: Emotional States",
+    text: "You'll see emotional words appear.\nWatch how you respond to each one.",
+  },
+  {
+    title: "Then: Timed Questions",
+    text: "Each question lasts 10 seconds.\nTap as many times as you feel called to.",
+  },
+  {
     title: "Express yourself",
-    text: "Tap up to 30 times - fast, slow, hold, or quick taps.",
-  },
-  {
-    title: "Feel, don't think",
-    text: "Let your emotions guide WHERE and HOW you tap.",
-  },
-  {
-    title: "Repeat",
-    text: "You'll respond to 5 questions total.",
+    text: "Fast, slow, gentle, forceful - there's no right way.\nLet your body speak through touch.",
   },
   {
     title: "What I analyze",
@@ -61,9 +72,12 @@ const INTRO_SLIDES = [
 export default function EmotionalInterface({ onTap }: Props) {
   const [introSlideIndex, setIntroSlideIndex] = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [showingEmotionalStates, setShowingEmotionalStates] = useState(false);
+  const [currentEmotionalStateIndex, setCurrentEmotionalStateIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [collectingTaps, setCollectingTaps] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(10);
   const [tapData, setTapData] = useState<TapData[][]>([[], [], [], [], []]);
   const [currentQuestionTaps, setCurrentQuestionTaps] = useState<TapData[]>([]);
   const [finalArchetype, setFinalArchetype] = useState<Archetype | null>(null);
@@ -71,33 +85,77 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   const tapStartTimeRef = useRef<number>(0);
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioManager = useRef(getAudioManager());
 
-  const FLASH_DURATION = 3500; // 3.5 seconds
-  const MAX_TAPS_PER_QUESTION = 30;
+  const EMOTIONAL_STATE_DURATION = 2500; // 2.5 seconds per state
+  const QUESTION_FLASH_DURATION = 3500; // 3.5 seconds
+  const COLLECTION_TIME = 10; // 10 seconds to tap
   const TOTAL_QUESTIONS = 5;
 
-  // Start session
+  // Start session with emotional states
   const startSession = () => {
     setSessionStarted(true);
+    setShowingEmotionalStates(true);
+    setCurrentEmotionalStateIndex(0);
     setCurrentQuestionIndex(0);
     setTapData([[], [], [], [], []]);
     setCurrentQuestionTaps([]);
     setFinalArchetype(null);
     setShowArchetypeReveal(false);
-    showNextQuestion();
+    showNextEmotionalState();
   };
 
-  // Show question for 3.5 seconds then hide
+  // Show next emotional state
+  const showNextEmotionalState = () => {
+    if (currentEmotionalStateIndex < EMOTIONAL_STATES.length) {
+      // Show state for 2.5 seconds, then move to next
+      questionTimerRef.current = setTimeout(() => {
+        setCurrentEmotionalStateIndex(currentEmotionalStateIndex + 1);
+        if (currentEmotionalStateIndex + 1 < EMOTIONAL_STATES.length) {
+          showNextEmotionalState();
+        } else {
+          // Emotional states complete - move to questions
+          setShowingEmotionalStates(false);
+          setTimeout(() => {
+            showNextQuestion();
+          }, 500);
+        }
+      }, EMOTIONAL_STATE_DURATION);
+    }
+  };
+
+  // Show question for 3.5 seconds then start 10-second collection
   const showNextQuestion = () => {
     setShowQuestion(true);
     setCollectingTaps(false);
     setCurrentQuestionTaps([]);
+    setTimeRemaining(COLLECTION_TIME);
 
     questionTimerRef.current = setTimeout(() => {
       setShowQuestion(false);
       setCollectingTaps(true);
-    }, FLASH_DURATION);
+      startCollectionTimer();
+    }, QUESTION_FLASH_DURATION);
+  };
+
+  // Start 10-second countdown timer
+  const startCollectionTimer = () => {
+    setTimeRemaining(COLLECTION_TIME);
+
+    countdownIntervalRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          // Time's up - move to next question
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+          }
+          advanceToNextQuestion(currentQuestionTaps);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   // Handle tap down
@@ -108,7 +166,7 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   // Handle tap release
   const handleTapEnd = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!collectingTaps || currentQuestionTaps.length >= MAX_TAPS_PER_QUESTION) return;
+    if (!collectingTaps) return;
 
     const duration = Date.now() - tapStartTimeRef.current;
     let x: number, y: number;
@@ -134,11 +192,6 @@ export default function EmotionalInterface({ onTap }: Props) {
 
     // Call parent's onTap for visual feedback
     onTap(x, y, duration);
-
-    // If we've reached 100 taps, move to next question
-    if (updatedTaps.length >= MAX_TAPS_PER_QUESTION) {
-      advanceToNextQuestion(updatedTaps);
-    }
   };
 
   // Advance to next question or finish
@@ -178,11 +231,14 @@ export default function EmotionalInterface({ onTap }: Props) {
     }, 2000);
   };
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (questionTimerRef.current) {
         clearTimeout(questionTimerRef.current);
+      }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
       }
     };
   }, []);
@@ -320,6 +376,41 @@ export default function EmotionalInterface({ onTap }: Props) {
     );
   }
 
+  // Emotional states display (before questions)
+  if (showingEmotionalStates && currentEmotionalStateIndex < EMOTIONAL_STATES.length) {
+    const currentState = EMOTIONAL_STATES[currentEmotionalStateIndex];
+    // Cycle through warm colors for background
+    const hue = (currentEmotionalStateIndex * 45) % 360;
+
+    return (
+      <div
+        style={{
+          ...styles.emotionalStateOverlay,
+          background: `linear-gradient(135deg,
+            hsla(${hue}, 70%, 15%, 0.9) 0%,
+            hsla(${(hue + 60) % 360}, 70%, 10%, 0.95) 100%)`
+        }}
+      >
+        <div style={styles.emotionalStateContainer}>
+          <h1 style={styles.emotionalStateText}>{currentState}</h1>
+          <div style={styles.stateProgress}>
+            {Array.from({ length: EMOTIONAL_STATES.length }).map((_, idx) => (
+              <div
+                key={idx}
+                style={{
+                  ...styles.stateProgressDot,
+                  background: idx === currentEmotionalStateIndex
+                    ? 'rgba(255, 255, 255, 0.9)'
+                    : 'rgba(255, 255, 255, 0.2)',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Question flash or tap collection screen
   return (
     <div
@@ -362,11 +453,14 @@ export default function EmotionalInterface({ onTap }: Props) {
             ))}
           </div>
 
-          {/* Tap counter - bottom right corner */}
+          {/* Timer - bottom right corner */}
           <div style={styles.tapCounter}>
             <div style={styles.tapCountCircle}>
-              <span style={styles.tapCountNumber}>{currentQuestionTaps.length}</span>
-              <span style={styles.tapCountMax}>/ {MAX_TAPS_PER_QUESTION}</span>
+              <span style={styles.tapCountNumber}>{timeRemaining}</span>
+              <span style={styles.tapCountMax}>seconds</span>
+            </div>
+            <div style={styles.tapCountDisplay}>
+              {currentQuestionTaps.length} taps
             </div>
           </div>
         </div>
@@ -687,5 +781,45 @@ const styles = {
     fontSize: '13px',
     color: 'rgba(255, 255, 255, 0.4)',
     fontWeight: '300',
+  },
+  emotionalStateOverlay: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    transition: 'background 0.5s ease',
+  },
+  emotionalStateContainer: {
+    textAlign: 'center' as const,
+  },
+  emotionalStateText: {
+    fontSize: '96px',
+    fontWeight: '200',
+    color: '#fff',
+    letterSpacing: '8px',
+    textTransform: 'uppercase' as const,
+    marginBottom: '60px',
+  },
+  stateProgress: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '12px',
+  },
+  stateProgressDot: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '50%',
+    transition: 'all 0.3s ease',
+  },
+  tapCountDisplay: {
+    fontSize: '14px',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: '8px',
+    textAlign: 'center' as const,
   },
 };
