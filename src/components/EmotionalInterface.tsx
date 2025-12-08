@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { analyzeArchetype, Archetype } from '@/data/archetypes30';
 import { getAudioManager } from '@/audio/audioManager';
+import { saveSessionResult } from '@/utils/analytics';
 
 interface TapData {
   x: number;
@@ -94,6 +95,7 @@ export default function EmotionalInterface({ onTap }: Props) {
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const collectionStartTimestampRef = useRef<number>(0);
   const lastTapTimestampRef = useRef<number>(0);
+  const sessionStartTimeRef = useRef<number>(0);
   const audioManager = useRef(getAudioManager());
 
   const EMOTIONAL_STATE_DURATION = 2500; // 2.5 seconds per state
@@ -116,6 +118,7 @@ export default function EmotionalInterface({ onTap }: Props) {
     setFinalArchetype(null);
     setShowArchetypeReveal(false);
     lastTapTimestampRef.current = 0;
+    sessionStartTimeRef.current = Date.now(); // Track session start for analytics
     showNextEmotionalState();
   };
 
@@ -375,6 +378,17 @@ export default function EmotionalInterface({ onTap }: Props) {
     // Run analysis on combined dataset
     const archetype = analyzeArchetype(allCombinedTaps);
     setFinalArchetype(archetype);
+
+    // Track analytics
+    const sessionDuration = Date.now() - sessionStartTimeRef.current;
+    const totalTapsCount = allCombinedTaps.length;
+    saveSessionResult({
+      timestamp: Date.now(),
+      archetypeId: archetype.id,
+      archetypeName: archetype.name,
+      sessionDuration,
+      totalTaps: totalTapsCount,
+    });
 
     // Show reveal after 2 seconds
     setTimeout(() => {
