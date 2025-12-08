@@ -519,48 +519,53 @@ export default function EmotionalInterface({ onTap }: Props) {
     );
   }
 
-  // Emotional states display (before questions)
+  // Emotional states display (before questions) - minimal top banner
   if (showingEmotionalStates && currentEmotionalStateIndex < EMOTIONAL_STATES.length) {
     const currentState = EMOTIONAL_STATES[currentEmotionalStateIndex];
-    // Cycle through warm colors for background
+    // Cycle through warm colors for accent
     const hue = (currentEmotionalStateIndex * 45) % 360;
 
     return (
-      <div
-        style={{
-          ...styles.emotionalStateOverlay,
-          background: `linear-gradient(135deg,
-            hsla(${hue}, 70%, 15%, 0.9) 0%,
-            hsla(${(hue + 60) % 360}, 70%, 10%, 0.95) 100%)`,
-          pointerEvents: 'auto',
-        }}
-        onMouseDown={handleTapStart}
-        onMouseUp={handleTapEnd}
-        onTouchStart={handleTapStart}
-        onTouchEnd={handleTapEnd}
-      >
-        <div style={styles.emotionalStateContainer}>
-          <h1 style={styles.emotionalStateText}>{currentState}</h1>
-          <div style={styles.stateProgress}>
-            {Array.from({ length: EMOTIONAL_STATES.length }).map((_, idx) => (
-              <div
-                key={idx}
-                style={{
-                  ...styles.stateProgressDot,
-                  background: idx === currentEmotionalStateIndex
-                    ? 'rgba(255, 255, 255, 0.9)'
-                    : 'rgba(255, 255, 255, 0.2)',
-                }}
-              />
-            ))}
-          </div>
-          {currentEmotionalStateTaps.length > 0 && (
-            <div style={styles.emotionalTapCount}>
-              {currentEmotionalStateTaps.length} {currentEmotionalStateTaps.length === 1 ? 'tap' : 'taps'}
+      <>
+        {/* Fullscreen interaction layer (invisible but captures taps) */}
+        <div
+          style={styles.fullScreenTapLayer}
+          onMouseDown={handleTapStart}
+          onMouseUp={handleTapEnd}
+          onTouchStart={handleTapStart}
+          onTouchEnd={handleTapEnd}
+        />
+
+        {/* Minimal top banner */}
+        <div style={styles.emotionalStateBanner}>
+          <div style={styles.emotionalStateBannerContent}>
+            <h1 style={{
+              ...styles.emotionalStateTextSmall,
+              color: `hsl(${hue}, 80%, 70%)`
+            }}>
+              {currentState}
+            </h1>
+            <div style={styles.stateProgress}>
+              {Array.from({ length: EMOTIONAL_STATES.length }).map((_, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    ...styles.stateProgressDot,
+                    background: idx === currentEmotionalStateIndex
+                      ? `hsl(${hue}, 80%, 70%)`
+                      : 'rgba(255, 255, 255, 0.15)',
+                  }}
+                />
+              ))}
             </div>
-          )}
+            {currentEmotionalStateTaps.length > 0 && (
+              <div style={styles.emotionalTapCountSmall}>
+                {currentEmotionalStateTaps.length} {currentEmotionalStateTaps.length === 1 ? 'tap' : 'taps'}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -979,6 +984,46 @@ const styles = {
     fontSize: '13px',
     color: 'rgba(255, 255, 255, 0.5)',
     marginTop: '24px',
+    fontStyle: 'italic',
+  },
+  fullScreenTapLayer: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    zIndex: 5,
+    pointerEvents: 'auto' as const,
+  },
+  emotionalStateBanner: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    width: '100vw',
+    padding: '24px 32px',
+    background: 'rgba(0, 0, 0, 0.3)',
+    backdropFilter: 'blur(8px)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    zIndex: 100,
+    pointerEvents: 'none' as const,
+  },
+  emotionalStateBannerContent: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    maxWidth: '1200px',
+    margin: '0 auto',
+  },
+  emotionalStateTextSmall: {
+    fontSize: '32px',
+    fontWeight: '200',
+    letterSpacing: '4px',
+    textTransform: 'uppercase' as const,
+    margin: 0,
+  },
+  emotionalTapCountSmall: {
+    fontSize: '12px',
+    color: 'rgba(255, 255, 255, 0.4)',
     fontStyle: 'italic',
   },
 };

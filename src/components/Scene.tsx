@@ -2,6 +2,7 @@
 
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRef, useEffect } from 'react';
+import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSimulationStore } from '@/store/simulationStore';
 import { EnergyParticles } from '@/visuals/particles/energyParticles';
@@ -21,9 +22,19 @@ interface WaveSource {
   isQuickTap: boolean;
 }
 
+interface ShootingStar {
+  start: THREE.Vector3;
+  velocity: THREE.Vector3;
+  lifetime: number;
+  age: number;
+}
+
 export default function Scene({ latestTap }: SceneProps) {
   const sphereRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<EnergyParticles | null>(null);
+  const starsRef = useRef<THREE.Points | null>(null);
+  const shootingStarsRef = useRef<ShootingStar[]>([]);
+  const shootingStarMeshesRef = useRef<THREE.Line[]>([]);
   const timeRef = useRef(0);
   const hueRef = useRef(0);
   const lastTapTimestampRef = useRef(0);
@@ -38,10 +49,44 @@ export default function Scene({ latestTap }: SceneProps) {
     perturbSystem,
   } = useSimulationStore();
 
-  // Initialize particles and audio
+  // Initialize particles, stars, and audio
   useEffect(() => {
     if (!particlesRef.current) {
       particlesRef.current = new EnergyParticles(1500, new THREE.Vector3(0, 0, 0));
+    }
+
+    // Create star field
+    if (!starsRef.current) {
+      const starCount = 800;
+      const starGeometry = new THREE.BufferGeometry();
+      const starPositions = new Float32Array(starCount * 3);
+      const starSizes = new Float32Array(starCount);
+
+      for (let i = 0; i < starCount; i++) {
+        // Random position in sphere around camera
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const radius = 40 + Math.random() * 60;
+
+        starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        starPositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+        starPositions[i * 3 + 2] = radius * Math.cos(phi);
+
+        starSizes[i] = Math.random() * 2 + 0.5;
+      }
+
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+
+      const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.15,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.8,
+      });
+
+      starsRef.current = new THREE.Points(starGeometry, starMaterial);
     }
 
     // Initialize audio (will be resumed on first user interaction)
@@ -209,6 +254,40 @@ export default function Scene({ latestTap }: SceneProps) {
       sphereRef.current.scale.setScalar(scale);
     }
 
+    // Twinkle stars
+    if (starsRef.current) {
+      const material = starsRef.current.material as THREE.PointsMaterial;
+      material.opacity = 0.6 + Math.sin(timeRef.current * 2) * 0.2;
+    }
+
+    // Create new shooting stars randomly
+    if (Math.random() < 0.02) { // 2% chance per frame
+      const angle = Math.random() * Math.PI * 2;
+      const height = (Math.random() - 0.5) * 30;
+      const radius = 50;
+
+      shootingStarsRef.current.push({
+        start: new THREE.Vector3(
+          Math.cos(angle) * radius,
+          height,
+          Math.sin(angle) * radius
+        ),
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        ),
+        lifetime: 1.5 + Math.random(),
+        age: 0
+      });
+    }
+
+    // Update shooting stars
+    shootingStarsRef.current = shootingStarsRef.current.filter(star => {
+      star.age += delta;
+      return star.age < star.lifetime;
+    });
+
     // Update particles
     if (particlesRef.current) {
       particlesRef.current.update(delta, hueRef.current, energy);
@@ -217,6 +296,27 @@ export default function Scene({ latestTap }: SceneProps) {
 
   return (
     <>
+      {/* Star field */}
+      {starsRef.current && <primitive object={starsRef.current} />}
+
+      {/* Shooting stars */}
+      {shootingStarsRef.current.map((star, i) => {
+        const progress = star.age / star.lifetime;
+        const currentPos = star.start.clone().add(star.velocity.clone().multiplyScalar(star.age));
+        const prevPos = star.start.clone().add(star.velocity.clone().multiplyScalar(Math.max(0, star.age - 0.05)));
+
+        return (
+          <Line
+            key={i}
+            points={[prevPos, currentPos]}
+            color="white"
+            lineWidth={2}
+            transparent
+            opacity={Math.max(0, 1 - progress)}
+          />
+        );
+      })}
+
       {/* Ambient light */}
       <ambientLight intensity={0.3} />
 
