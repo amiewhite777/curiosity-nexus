@@ -10,7 +10,7 @@
  * 2. Rebuild and deploy
  */
 
-export const MAINTENANCE_MODE = false;
+export const MAINTENANCE_MODE = true;
 
 export const MAINTENANCE_CONFIG = {
   title: "Curiosity Nexus",
