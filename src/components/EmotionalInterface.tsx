@@ -57,7 +57,7 @@ const INTRO_SLIDES = [
   },
   {
     title: "Then: Timed Questions",
-    text: "Each question lasts 10 seconds.\nTap as many times as you feel called to.",
+    text: "Each question lasts 5 seconds.\nTap as many times as you feel called to.",
   },
   {
     title: "Express yourself",
@@ -100,7 +100,7 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   const EMOTIONAL_STATE_DURATION = 2500; // 2.5 seconds per state
   const QUESTION_FLASH_DURATION = 3500; // 3.5 seconds
-  const COLLECTION_TIME = 10; // 10 seconds to tap
+  const COLLECTION_TIME = 5; // 5 seconds to tap
   const TOTAL_QUESTIONS = 5;
 
   // Start session with emotional states
@@ -167,7 +167,7 @@ export default function EmotionalInterface({ onTap }: Props) {
     }, QUESTION_FLASH_DURATION);
   };
 
-  // Start 10-second countdown timer
+  // Start countdown timer
   const startCollectionTimer = () => {
     setTimeRemaining(COLLECTION_TIME);
 
@@ -178,7 +178,11 @@ export default function EmotionalInterface({ onTap }: Props) {
           if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
           }
-          advanceToNextQuestion(currentQuestionTaps);
+          // Use a ref to get current taps to avoid closure issues
+          setCurrentQuestionTaps(taps => {
+            advanceToNextQuestion(taps);
+            return taps;
+          });
           return 0;
         }
         return prev - 1;
@@ -257,22 +261,34 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   // Advance to next question or finish
   const advanceToNextQuestion = (taps: TapData[]) => {
-    // Save current question's taps
-    const newTapData = [...tapData];
-    newTapData[currentQuestionIndex] = taps;
-    setTapData(newTapData);
+    // Use functional setState to avoid closure issues
+    setCurrentQuestionIndex(prevIndex => {
+      // Save current question's taps
+      setTapData(prevTapData => {
+        const newTapData = [...prevTapData];
+        newTapData[prevIndex] = taps;
 
-    if (currentQuestionIndex < TOTAL_QUESTIONS - 1) {
-      // Move to next question
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setCollectingTaps(false);
-      setTimeout(() => {
-        showNextQuestion();
-      }, 500);
-    } else {
-      // All questions complete - analyze
-      analyzeAllData(newTapData);
-    }
+        if (prevIndex < TOTAL_QUESTIONS - 1) {
+          // Move to next question - will happen after this setState
+          return newTapData;
+        } else {
+          // All questions complete - analyze
+          analyzeAllData(newTapData);
+          return newTapData;
+        }
+      });
+
+      if (prevIndex < TOTAL_QUESTIONS - 1) {
+        // Move to next question
+        setCollectingTaps(false);
+        setTimeout(() => {
+          showNextQuestion();
+        }, 500);
+        return prevIndex + 1;
+      }
+
+      return prevIndex;
+    });
   };
 
   // Analyze spatial patterns in tap distribution
