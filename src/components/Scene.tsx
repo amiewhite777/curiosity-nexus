@@ -1,0 +1,369 @@
+'use client';
+
+import { useFrame, useThree } from '@react-three/fiber';
+import { useRef, useEffect } from 'react';
+import { Line } from '@react-three/drei';
+import * as THREE from 'three';
+import { useSimulationStore } from '@/store/simulationStore';
+import { EnergyParticles } from '@/visuals/particles/energyParticles';
+import { getAudioManager } from '@/audio/audioManager';
+import type { TapEvent } from './SimulationCanvas';
+
+interface SceneProps {
+  latestTap: TapEvent | null;
+}
+
+interface WaveSource {
+  worldPoint: THREE.Vector3;
+  amplitude: number;
+  frequency: number;
+  speed: number;
+  timestamp: number;
+}
+
+interface ShootingStar {
+  start: THREE.Vector3;
+  velocity: THREE.Vector3;
+  lifetime: number;
+  age: number;
+}
+
+export default function Scene({ latestTap }: SceneProps) {
+  const sphereRef = useRef<THREE.Mesh>(null);
+  const particlesRef = useRef<EnergyParticles | null>(null);
+  const starsRef = useRef<THREE.Points | null>(null);
+  const shootingStarsRef = useRef<ShootingStar[]>([]);
+  const shootingStarMeshesRef = useRef<THREE.Line[]>([]);
+  const timeRef = useRef(0);
+  const hueRef = useRef(0);
+  const lastTapTimestampRef = useRef(0);
+  const previousTapTimeRef = useRef(0); // Track previous tap for intensity calculation
+  const waveSourcesRef = useRef<WaveSource[]>([]);
+  const audioManager = useRef(getAudioManager());
+
+  const { camera } = useThree();
+  const {
+    chaosLevel,
+    energy,
+    tick,
+    perturbSystem,
+  } = useSimulationStore();
+
+  // Initialize particles, stars, and audio
+  useEffect(() => {
+    if (!particlesRef.current) {
+      particlesRef.current = new EnergyParticles(1500, new THREE.Vector3(0, 0, 0));
+    }
+
+    // Create star field
+    if (!starsRef.current) {
+      const starCount = 800;
+      const starGeometry = new THREE.BufferGeometry();
+      const starPositions = new Float32Array(starCount * 3);
+      const starSizes = new Float32Array(starCount);
+
+      for (let i = 0; i < starCount; i++) {
+        // Random position in sphere around camera
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const radius = 40 + Math.random() * 60;
+
+        starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        starPositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+        starPositions[i * 3 + 2] = radius * Math.cos(phi);
+
+        starSizes[i] = Math.random() * 2 + 0.5;
+      }
+
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+
+      const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.15,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.8,
+      });
+
+      starsRef.current = new THREE.Points(starGeometry, starMaterial);
+    }
+
+    // Initialize audio (will be resumed on first user interaction)
+    audioManager.current.initialize();
+
+    return () => {
+      audioManager.current.stopAll();
+    };
+  }, []);
+
+  // Handle taps from EmotionalInterface
+  useEffect(() => {
+    if (!latestTap || latestTap.timestamp === lastTapTimestampRef.current) return;
+
+    // Calculate tap intensity based on speed
+    const timeSincePreviousTap = previousTapTimeRef.current > 0
+      ? latestTap.timestamp - previousTapTimeRef.current
+      : 1000; // Default to slow for first tap
+
+    // Map time between taps to intensity (0-1)
+    // Very fast (<200ms) = high intensity (1.0)
+    // Slow (>1000ms) = low intensity (0.1)
+    let intensity = 0.5; // Default medium
+    if (timeSincePreviousTap < 200) {
+      intensity = 1.0; // Very fast
+    } else if (timeSincePreviousTap < 400) {
+      intensity = 0.75; // Fast
+    } else if (timeSincePreviousTap < 600) {
+      intensity = 0.5; // Medium
+    } else if (timeSincePreviousTap < 1000) {
+      intensity = 0.3; // Slow
+    } else {
+      intensity = 0.15; // Very slow
+    }
+
+    lastTapTimestampRef.current = latestTap.timestamp;
+    previousTapTimeRef.current = latestTap.timestamp;
+
+    // Convert normalized screen coords (0-1) to world space
+    const ndcX = (latestTap.x * 2) - 1;
+    const ndcY = -(latestTap.y * 2) + 1;
+
+    // Create raycaster from screen position
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+    // Intersect with plane at z=0
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const worldPoint = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, worldPoint);
+
+    if (worldPoint && particlesRef.current) {
+      // Color shift - full spectrum cycle with each tap
+      hueRef.current = (hueRef.current + 45) % 360;
+
+      // Perturb system
+      perturbSystem(0.3);
+
+      // Create wave source
+      waveSourcesRef.current.push({
+        worldPoint: worldPoint.clone(),
+        amplitude: 0.3,
+        frequency: 2.0,
+        speed: 6.5,
+        timestamp: Date.now(),
+      });
+
+      // Keep only recent wave sources (last 15)
+      if (waveSourcesRef.current.length > 15) {
+        waveSourcesRef.current.shift();
+      }
+
+      // Play tap sound with calculated intensity
+      audioManager.current.resume(); // Resume context if suspended
+      audioManager.current.playTapSound({
+        x: latestTap.x,
+        y: latestTap.y,
+        timestamp: latestTap.timestamp,
+        intensity: intensity,
+      });
+
+      // Particle behavior - attract + burst
+      particlesRef.current.attractToPoint(worldPoint, 0.6);
+      particlesRef.current.burst(worldPoint, 30);
+    }
+  }, [latestTap, camera, perturbSystem]);
+
+  // Main animation loop
+  useFrame((state, delta) => {
+    timeRef.current += delta;
+    tick(delta);
+
+    // Remove old wave sources (waves last 2 seconds)
+    const now = Date.now();
+    waveSourcesRef.current = waveSourcesRef.current.filter(
+      wave => (now - wave.timestamp) / 1000 < 2.0
+    );
+
+    // Smooth hue transition based on chaos
+    const targetHue = chaosLevel * 360;
+    hueRef.current += (targetHue - hueRef.current) * 0.05;
+
+    // Color
+    const saturation = 0.9;
+    const lightness = 0.5 + Math.sin(timeRef.current * 2) * 0.1;
+    const color = new THREE.Color().setHSL(hueRef.current / 360, saturation, lightness);
+
+    // Update sphere
+    if (sphereRef.current) {
+      const material = sphereRef.current.material as THREE.MeshStandardMaterial;
+      material.color = color;
+      material.emissive = color.clone().multiplyScalar(0.4);
+
+      // Morphing based on energy AND propagating waves
+      const geometry = sphereRef.current.geometry as THREE.SphereGeometry;
+      const positionAttribute = geometry.attributes.position;
+
+      for (let i = 0; i < positionAttribute.count; i++) {
+        const vertex = new THREE.Vector3(
+          positionAttribute.getX(i),
+          positionAttribute.getY(i),
+          positionAttribute.getZ(i)
+        );
+
+        // Base noise animation
+        const noise = Math.sin(vertex.x * 2 + timeRef.current * 2) *
+                     Math.cos(vertex.y * 2 + timeRef.current * 1.5) *
+                     Math.sin(vertex.z * 2 + timeRef.current * 1.8);
+
+        let distortion = 1 + noise * energy * 0.08;
+
+        // Add wave-based deformations
+        waveSourcesRef.current.forEach(wave => {
+          const distance = vertex.distanceTo(wave.worldPoint);
+          const timeElapsed = (now - wave.timestamp) / 1000; // in seconds
+
+          // Calculate wave front position
+          const waveFront = wave.speed * timeElapsed;
+
+          // Wave exists in a band around the wave front
+          const distanceFromFront = Math.abs(distance - waveFront);
+          const waveWidth = 2.0; // Width of the wave band
+
+          if (distanceFromFront < waveWidth) {
+            // Wave amplitude decays over time
+            const timeDecay = Math.max(0, 1 - timeElapsed / 2.0);
+
+            // Wave shape - strongest at center of band
+            const bandPosition = 1 - (distanceFromFront / waveWidth);
+
+            // Create sine wave oscillation
+            const phase = distance * wave.frequency - timeElapsed * 5;
+            const waveOscillation = Math.sin(phase) * bandPosition;
+
+            // Apply wave deformation
+            const waveEffect = wave.amplitude * waveOscillation * timeDecay;
+            distortion += waveEffect;
+          }
+        });
+
+        vertex.normalize().multiplyScalar(3.5 * distortion);
+        positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+      }
+
+      positionAttribute.needsUpdate = true;
+      geometry.computeVertexNormals();
+
+      // Rotation - influenced by wave activity
+      const rotationSpeed = 0.2 + (waveSourcesRef.current.length * 0.05);
+      sphereRef.current.rotation.y += delta * rotationSpeed;
+      sphereRef.current.rotation.x += delta * (rotationSpeed * 0.5);
+
+      // Pulsation - more dramatic with wave activity
+      const waveActivity = Math.min(waveSourcesRef.current.length / 15, 1);
+      const pulseIntensity = energy * 0.03 + waveActivity * 0.05;
+      const scale = 1 + Math.sin(timeRef.current * 1.5) * pulseIntensity;
+      sphereRef.current.scale.setScalar(scale);
+    }
+
+    // Twinkle stars
+    if (starsRef.current) {
+      const material = starsRef.current.material as THREE.PointsMaterial;
+      material.opacity = 0.6 + Math.sin(timeRef.current * 2) * 0.2;
+    }
+
+    // Create new shooting stars randomly
+    if (Math.random() < 0.02) { // 2% chance per frame
+      const angle = Math.random() * Math.PI * 2;
+      const height = (Math.random() - 0.5) * 30;
+      const radius = 50;
+
+      shootingStarsRef.current.push({
+        start: new THREE.Vector3(
+          Math.cos(angle) * radius,
+          height,
+          Math.sin(angle) * radius
+        ),
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        ),
+        lifetime: 1.5 + Math.random(),
+        age: 0
+      });
+    }
+
+    // Update shooting stars
+    shootingStarsRef.current = shootingStarsRef.current.filter(star => {
+      star.age += delta;
+      return star.age < star.lifetime;
+    });
+
+    // Update particles
+    if (particlesRef.current) {
+      particlesRef.current.update(delta, hueRef.current, energy);
+    }
+  });
+
+  return (
+    <>
+      {/* Star field */}
+      {starsRef.current && <primitive object={starsRef.current} />}
+
+      {/* Shooting stars */}
+      {shootingStarsRef.current.map((star, i) => {
+        const progress = star.age / star.lifetime;
+        const currentPos = star.start.clone().add(star.velocity.clone().multiplyScalar(star.age));
+        const prevPos = star.start.clone().add(star.velocity.clone().multiplyScalar(Math.max(0, star.age - 0.05)));
+
+        return (
+          <Line
+            key={i}
+            points={[prevPos, currentPos]}
+            color="white"
+            lineWidth={2}
+            transparent
+            opacity={Math.max(0, 1 - progress)}
+          />
+        );
+      })}
+
+      {/* Ambient light */}
+      <ambientLight intensity={0.3} />
+
+      {/* Dynamic lights */}
+      <pointLight position={[10, 10, 10]} intensity={1.5} />
+      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+      <pointLight position={[0, 0, 15]} intensity={0.8} />
+
+      {/* Living energy orb */}
+      <mesh ref={sphereRef}>
+        <sphereGeometry args={[3.5, 64, 64]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          metalness={0.3}
+          roughness={0.2}
+          emissive="#000000"
+          emissiveIntensity={0.4}
+        />
+      </mesh>
+
+      {/* Energy particles */}
+      {particlesRef.current && (
+        <primitive object={particlesRef.current.getPoints()} />
+      )}
+
+      {/* Glow effect */}
+      <mesh>
+        <sphereGeometry args={[4.2, 32, 32]} />
+        <meshBasicMaterial
+          color={new THREE.Color().setHSL(hueRef.current / 360, 0.9, 0.5)}
+          transparent
+          opacity={0.15}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </>
+  );
+}
