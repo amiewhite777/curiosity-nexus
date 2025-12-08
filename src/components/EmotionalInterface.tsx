@@ -121,32 +121,34 @@ export default function EmotionalInterface({ onTap }: Props) {
     showNextEmotionalState();
   };
 
-  // Show next emotional state
-  const showNextEmotionalState = () => {
-    if (currentEmotionalStateIndex < EMOTIONAL_STATES.length) {
-      // Reset for new emotional state
-      setCurrentEmotionalStateTaps([]);
-
-      // Show state for 2.5 seconds, then move to next
-      questionTimerRef.current = setTimeout(() => {
-        // Save current emotional state's taps
-        const newEmotionalStateTaps = [...emotionalStateTaps];
-        newEmotionalStateTaps[currentEmotionalStateIndex] = currentEmotionalStateTaps;
-        setEmotionalStateTaps(newEmotionalStateTaps);
-
-        setCurrentEmotionalStateIndex(currentEmotionalStateIndex + 1);
-        if (currentEmotionalStateIndex + 1 < EMOTIONAL_STATES.length) {
-          showNextEmotionalState();
-        } else {
-          // Emotional states complete - move to questions
-          setShowingEmotionalStates(false);
-          setCollectingEmotionalTaps(false);
-          setTimeout(() => {
-            showNextQuestion();
-          }, 500);
-        }
-      }, EMOTIONAL_STATE_DURATION);
+  // Show next emotional state (with index parameter to avoid closure issues)
+  const showNextEmotionalState = (index: number = currentEmotionalStateIndex) => {
+    if (index >= EMOTIONAL_STATES.length) {
+      // All states shown - move to questions
+      setShowingEmotionalStates(false);
+      setCollectingEmotionalTaps(false);
+      setTimeout(() => {
+        showNextQuestion();
+      }, 500);
+      return;
     }
+
+    // Update to current index
+    setCurrentEmotionalStateIndex(index);
+    setCurrentEmotionalStateTaps([]);
+
+    // Show state for 2.5 seconds, then move to next
+    questionTimerRef.current = setTimeout(() => {
+      // Save current emotional state's taps
+      setEmotionalStateTaps(prev => {
+        const newTaps = [...prev];
+        newTaps[index] = currentEmotionalStateTaps;
+        return newTaps;
+      });
+
+      // Move to next state
+      showNextEmotionalState(index + 1);
+    }, EMOTIONAL_STATE_DURATION);
   };
 
   // Show question for 3.5 seconds then start 10-second collection
