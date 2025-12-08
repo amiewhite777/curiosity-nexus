@@ -1,12 +1,12 @@
 # Curiosity Nexus 🌟
 
-An interactive consciousness exploration that reveals your inner archetype through the subtle language of touch. Built with Next.js 14, React Three Fiber, and Web Audio API.
+An interactive consciousness exploration that reveals your inner archetype through the subtle language of tapping. Built with Next.js 14, React Three Fiber, and Web Audio API.
 
 ## 🎯 What Is This?
 
 Curiosity Nexus is an emotional consciousness analyzer. Through a series of emotional prompts and timed questions, it analyzes **how you tap** (not what you answer) to reveal one of 30 unique personality archetypes.
 
-It doesn't track your words—it tracks your **qualia**: the rhythm, speed, intensity, and spatial patterns of your touch.
+It doesn't track your words—it tracks your **qualia**: the rhythm, speed, intensity, and spatial patterns of your taps.
 
 ## ✨ Features
 
@@ -30,7 +30,7 @@ From "The Wanderer" to "The Oracle", each archetype represents a distinct consci
 ### Beautiful Visuals
 - Particle field with energy waves
 - Shooting stars across the cosmos
-- Fluid 3D orb that responds to touch
+- Fluid 3D orb that responds to taps
 - Smooth transitions and animations
 
 ### Built-In Analytics
@@ -171,7 +171,7 @@ Works on desktop and mobile. Audio requires user interaction to start (browser s
 
 ## 🎯 Design Philosophy
 
-**No right answers.** The system doesn't judge your responses—it observes how you express yourself through touch. Tap fast, slow, gently, forcefully, or not at all. Every pattern tells a story.
+**No right answers.** The system doesn't judge your responses—it observes how you express yourself through tapping. Tap fast, slow, gently, forcefully, or not at all. Every pattern tells a story.
 
 ## 📝 License
 
@@ -179,4 +179,4 @@ MIT
 
 ---
 
-**An exploration of consciousness through touch. Each tap is a signature.**
+**An exploration of consciousness through tapping. Each tap is a signature.**
