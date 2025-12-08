@@ -9,6 +9,10 @@ interface TapData {
   y: number;
   duration: number;
   timestamp: number;
+  intervalSincePrevious?: number; // Time since last tap (reveals rhythm)
+  emotionalState?: string; // Which emotional state was active (if any)
+  questionIndex?: number; // Which question this was for
+  reactionLatency?: number; // Time from collection start to this tap (for first tap only)
 }
 
 interface Props {
@@ -49,7 +53,7 @@ const INTRO_SLIDES = [
   },
   {
     title: "First: Emotional States",
-    text: "You'll see emotional words appear.\nWatch how you respond to each one.",
+    text: "You'll see emotional words appear.\nTap if you feel moved to - or simply observe.",
   },
   {
     title: "Then: Timed Questions",
@@ -77,15 +81,21 @@ export default function EmotionalInterface({ onTap }: Props) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [collectingTaps, setCollectingTaps] = useState(false);
+  const [collectingEmotionalTaps, setCollectingEmotionalTaps] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(10);
   const [tapData, setTapData] = useState<TapData[][]>([[], [], [], [], []]);
+  const [emotionalStateTaps, setEmotionalStateTaps] = useState<TapData[][]>([[], [], [], [], [], [], [], []]);
   const [currentQuestionTaps, setCurrentQuestionTaps] = useState<TapData[]>([]);
+  const [currentEmotionalStateTaps, setCurrentEmotionalStateTaps] = useState<TapData[]>([]);
+  const [reactionLatencies, setReactionLatencies] = useState<number[]>([]);
   const [finalArchetype, setFinalArchetype] = useState<Archetype | null>(null);
   const [showArchetypeReveal, setShowArchetypeReveal] = useState(false);
 
   const tapStartTimeRef = useRef<number>(0);
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const collectionStartTimestampRef = useRef<number>(0);
+  const lastTapTimestampRef = useRef<number>(0);
   const audioManager = useRef(getAudioManager());
 
   const EMOTIONAL_STATE_DURATION = 2500; // 2.5 seconds per state
@@ -97,26 +107,40 @@ export default function EmotionalInterface({ onTap }: Props) {
   const startSession = () => {
     setSessionStarted(true);
     setShowingEmotionalStates(true);
+    setCollectingEmotionalTaps(true);
     setCurrentEmotionalStateIndex(0);
     setCurrentQuestionIndex(0);
     setTapData([[], [], [], [], []]);
+    setEmotionalStateTaps([[], [], [], [], [], [], [], []]);
     setCurrentQuestionTaps([]);
+    setCurrentEmotionalStateTaps([]);
+    setReactionLatencies([]);
     setFinalArchetype(null);
     setShowArchetypeReveal(false);
+    lastTapTimestampRef.current = 0;
     showNextEmotionalState();
   };
 
   // Show next emotional state
   const showNextEmotionalState = () => {
     if (currentEmotionalStateIndex < EMOTIONAL_STATES.length) {
+      // Reset for new emotional state
+      setCurrentEmotionalStateTaps([]);
+
       // Show state for 2.5 seconds, then move to next
       questionTimerRef.current = setTimeout(() => {
+        // Save current emotional state's taps
+        const newEmotionalStateTaps = [...emotionalStateTaps];
+        newEmotionalStateTaps[currentEmotionalStateIndex] = currentEmotionalStateTaps;
+        setEmotionalStateTaps(newEmotionalStateTaps);
+
         setCurrentEmotionalStateIndex(currentEmotionalStateIndex + 1);
         if (currentEmotionalStateIndex + 1 < EMOTIONAL_STATES.length) {
           showNextEmotionalState();
         } else {
           // Emotional states complete - move to questions
           setShowingEmotionalStates(false);
+          setCollectingEmotionalTaps(false);
           setTimeout(() => {
             showNextQuestion();
           }, 500);
@@ -135,6 +159,8 @@ export default function EmotionalInterface({ onTap }: Props) {
     questionTimerRef.current = setTimeout(() => {
       setShowQuestion(false);
       setCollectingTaps(true);
+      // Track when collection starts for reaction latency measurement
+      collectionStartTimestampRef.current = Date.now();
       startCollectionTimer();
     }, QUESTION_FLASH_DURATION);
   };
@@ -160,15 +186,16 @@ export default function EmotionalInterface({ onTap }: Props) {
 
   // Handle tap down
   const handleTapStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!collectingTaps) return;
+    if (!collectingTaps && !collectingEmotionalTaps) return;
     tapStartTimeRef.current = Date.now();
   };
 
   // Handle tap release
   const handleTapEnd = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!collectingTaps) return;
+    if (!collectingTaps && !collectingEmotionalTaps) return;
 
-    const duration = Date.now() - tapStartTimeRef.current;
+    const now = Date.now();
+    const duration = now - tapStartTimeRef.current;
     let x: number, y: number;
 
     if ('touches' in e) {
@@ -180,15 +207,47 @@ export default function EmotionalInterface({ onTap }: Props) {
       y = e.clientY / window.innerHeight;
     }
 
+    // Calculate interval since previous tap (reveals rhythm)
+    const intervalSincePrevious = lastTapTimestampRef.current > 0
+      ? now - lastTapTimestampRef.current
+      : undefined;
+
     const newTap: TapData = {
       x,
       y,
       duration,
-      timestamp: Date.now(),
+      timestamp: now,
+      intervalSincePrevious,
     };
 
-    const updatedTaps = [...currentQuestionTaps, newTap];
-    setCurrentQuestionTaps(updatedTaps);
+    // Add emotional state context if we're in that phase
+    if (collectingEmotionalTaps) {
+      newTap.emotionalState = EMOTIONAL_STATES[currentEmotionalStateIndex];
+      const updatedTaps = [...currentEmotionalStateTaps, newTap];
+      setCurrentEmotionalStateTaps(updatedTaps);
+    }
+
+    // Add question context and reaction latency if we're in question phase
+    if (collectingTaps) {
+      newTap.questionIndex = currentQuestionIndex;
+
+      // For FIRST tap of this question, calculate reaction latency
+      if (currentQuestionTaps.length === 0) {
+        const latency = now - collectionStartTimestampRef.current;
+        newTap.reactionLatency = latency;
+
+        // Store reaction latency for this question
+        const newLatencies = [...reactionLatencies];
+        newLatencies[currentQuestionIndex] = latency;
+        setReactionLatencies(newLatencies);
+      }
+
+      const updatedTaps = [...currentQuestionTaps, newTap];
+      setCurrentQuestionTaps(updatedTaps);
+    }
+
+    // Update last tap timestamp for interval calculation
+    lastTapTimestampRef.current = now;
 
     // Call parent's onTap for visual feedback
     onTap(x, y, duration);
@@ -218,11 +277,23 @@ export default function EmotionalInterface({ onTap }: Props) {
   const analyzeAllData = (allTaps: TapData[][]) => {
     setCollectingTaps(false);
 
-    // Flatten all taps into one array
-    const flatTaps = allTaps.flat();
+    // Flatten all taps into one array - include both emotional state AND question taps
+    const emotionalTaps = emotionalStateTaps.flat();
+    const questionTaps = allTaps.flat();
+    const allCombinedTaps = [...emotionalTaps, ...questionTaps];
 
-    // Run analysis
-    const archetype = analyzeArchetype(flatTaps);
+    console.log('📊 Analysis Data:', {
+      emotionalStateTaps: emotionalTaps.length,
+      questionTaps: questionTaps.length,
+      total: allCombinedTaps.length,
+      reactionLatencies,
+      avgLatency: reactionLatencies.length > 0
+        ? (reactionLatencies.reduce((a, b) => a + b, 0) / reactionLatencies.length).toFixed(0) + 'ms'
+        : 'N/A'
+    });
+
+    // Run analysis on combined dataset
+    const archetype = analyzeArchetype(allCombinedTaps);
     setFinalArchetype(archetype);
 
     // Show reveal after 2 seconds
@@ -388,8 +459,13 @@ export default function EmotionalInterface({ onTap }: Props) {
           ...styles.emotionalStateOverlay,
           background: `linear-gradient(135deg,
             hsla(${hue}, 70%, 15%, 0.9) 0%,
-            hsla(${(hue + 60) % 360}, 70%, 10%, 0.95) 100%)`
+            hsla(${(hue + 60) % 360}, 70%, 10%, 0.95) 100%)`,
+          pointerEvents: 'auto',
         }}
+        onMouseDown={handleTapStart}
+        onMouseUp={handleTapEnd}
+        onTouchStart={handleTapStart}
+        onTouchEnd={handleTapEnd}
       >
         <div style={styles.emotionalStateContainer}>
           <h1 style={styles.emotionalStateText}>{currentState}</h1>
@@ -406,6 +482,11 @@ export default function EmotionalInterface({ onTap }: Props) {
               />
             ))}
           </div>
+          {currentEmotionalStateTaps.length > 0 && (
+            <div style={styles.emotionalTapCount}>
+              {currentEmotionalStateTaps.length} {currentEmotionalStateTaps.length === 1 ? 'tap' : 'taps'}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -821,5 +902,11 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.6)',
     marginTop: '8px',
     textAlign: 'center' as const,
+  },
+  emotionalTapCount: {
+    fontSize: '13px',
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: '24px',
+    fontStyle: 'italic',
   },
 };
