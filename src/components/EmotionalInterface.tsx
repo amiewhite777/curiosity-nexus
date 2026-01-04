@@ -41,7 +41,7 @@ const QUESTIONS = [
 const INTRO_SLIDES = [
   {
     title: "Curiosity Nexus",
-    text: "An exploration of who you are through touch.",
+    text: "An exploration of who you are through tapping.",
   },
   {
     title: "How it works",
@@ -61,11 +61,11 @@ const INTRO_SLIDES = [
   },
   {
     title: "Express yourself",
-    text: "Fast, slow, gentle, forceful - there's no right way.\nLet your body speak through touch.",
+    text: "Fast, slow, gentle, forceful - there's no right way.\nLet your body speak through tapping.",
   },
   {
     title: "What I analyze",
-    text: "Not your answers - but how you touch.\nThe rhythm, pressure, and position.",
+    text: "Not your answers - but how you tap.\nThe rhythm, speed, and position.",
   },
   {
     title: "Ready?",
@@ -524,7 +524,7 @@ export default function EmotionalInterface({ onTap }: Props) {
           </div>
 
           <div style={styles.statsSection}>
-            <p style={styles.statsText}>Analyzed {totalTaps} touch interactions</p>
+            <p style={styles.statsText}>Analyzed {totalTaps} tap interactions</p>
           </div>
 
           <button
